@@ -1,3 +1,12 @@
+/*=============================================================================
+    Copyright (c) 2010-2011 Christian Holmquist
+
+    Distributed under the Boost Software License, Version 1.0. (See accompanying
+    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+==============================================================================*/
+
+// Junk file, remove
+
 #if 0
 #ifndef BOOST_RPC_DETAIL_HEADER_HPP
 #define BOOST_RPC_DETAIL_HEADER_HPP
