@@ -23,7 +23,7 @@ namespace detail
 template<BOOST_PP_ENUM_BINARY_PARAMS(BOOST_RPC_THROWS_LIMITS, class E, = detail::na BOOST_PP_INTERCEPT)>
 struct throws;
 
-#define BOOST_PP_FILENAME_1 <boost/rpc/throws.hpp>
+#define BOOST_PP_FILENAME_1 <boost/rpc/core/throws.hpp>
 #define BOOST_PP_ITERATION_LIMITS (0, BOOST_RPC_THROWS_LIMITS)
 #include BOOST_PP_ITERATE()
 
