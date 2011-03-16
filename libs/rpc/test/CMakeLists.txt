@@ -4,4 +4,6 @@
 #          http://www.boost.org/LICENSE_1_0.txt)
 
 include_directories(${BOOST-RPC_SOURCE_DIR})
-add_executable(console console/console.cpp)
+
+add_executable(test_service_async_tcp service/async_tcp.cpp)
+target_link_libraries(test_service_async_tcp ${Boost_LIBRARIES})
