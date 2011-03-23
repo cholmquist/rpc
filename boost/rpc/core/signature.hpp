@@ -38,7 +38,6 @@ namespace boost{ namespace rpc
 	template<class Id, class Signature, class ExceptionHandler = no_exception_handler>
 	struct signature
 	{
-	public:
 		typedef Id id_type;
 		typedef Signature type;
 		typedef typename function_types::components<

@@ -2,7 +2,7 @@
 #include <boost/rpc/core/signature.hpp>
 #include <boost/rpc/core/local.hpp>
 #include <boost/rpc/core/placeholder.hpp>
-#include <boost/rpc/throws.hpp>
+#include <boost/rpc/core/throws.hpp>
 #include <boost/function/function2.hpp>
 //#include <boost/bind/arg.hpp>
 #include <iostream>

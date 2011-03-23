@@ -5,5 +5,16 @@
 
 include_directories(${BOOST-RPC_SOURCE_DIR})
 
-add_executable(test_service_async_tcp service/async_tcp.cpp)
-target_link_libraries(test_service_async_tcp ${Boost_LIBRARIES})
+set(TESTS
+	core/async_local.cpp
+	core/async_remote.cpp
+	core/local.cpp
+	service/async_tcp.cpp
+)
+
+foreach( test ${TESTS} )
+	string( REPLACE "/" "_" test_exe ${test} )
+	string( REPLACE ".cpp" "" test_exe ${test_exe} )
+	add_executable(${test_exe} ${test})
+	target_link_libraries(${test_exe} ${Boost_LIBRARIES})
+endforeach( test )
