@@ -27,6 +27,10 @@
 #include <boost/array.hpp>
 #include <boost/mpl/if.hpp>
 
+// exception support
+#include <boost/type_traits/is_base_of.hpp>
+#include <boost/type_traits/is_convertible.hpp>
+
 #include <vector>
 #include <cstring>
 
@@ -36,6 +40,7 @@ namespace boost{ namespace rpc { namespace traits {
 	struct std_container_tag {};
 	struct fusion_container_tag {};
 	struct variant_container_tag {};
+	struct exception_tag {};
 	struct array_container_tag : std_container_tag {};
 
 	namespace detail
@@ -71,6 +76,12 @@ namespace boost{ namespace rpc { namespace traits {
 	struct container_tag_of<T, typename boost::enable_if<is_array<T> > >
 	{
 		typedef array_container_tag type;
+	};
+
+	template<class T>
+	struct container_tag_of<T, typename boost::enable_if<boost::is_base_of<std::exception, T> >::type >
+	{
+		typedef exception_tag type;
 	};
 
 	template<class T>
@@ -127,6 +138,24 @@ namespace detail
 	refbinder1<Function, A1> refbind1(Function& f, A1 a1)
 	{
 		return refbinder1<Function, A1>(f, a1);
+	}
+
+	template<class Exception>
+	void assign_exception_what_impl(Exception& e, const std::string& what, boost::true_type)
+	{
+		e = Exception(what);
+	}
+
+	template<class Exception>
+	void assign_exception_what_impl(Exception& e, const std::string& what, boost::false_type)
+	{
+		e = Exception(what.c_str());
+	}
+
+	template<class Exception>
+	void assign_exception_what(Exception& e, const std::string& what)
+	{
+		assign_exception_what_impl(e, what, boost::is_convertible<std::string, Exception>());
 	}
 
 };
@@ -226,6 +255,16 @@ public:
 			}
 		}
 
+		template<class T, class Tag>
+		void read(T& t, Tag tag, rpc::traits::exception_tag)
+		{
+			std::string what;
+			read(what, tag, rpc::traits::std_container_tag());
+			detail::assign_exception_what(t, what);
+		}
+
+
+
 	private:
 		input_type&	m_input;
 		std::size_t m_cursor;
@@ -281,6 +320,13 @@ public:
 			{
 				this->write(*i, tag, typename rpc::traits::container_tag_of<typename T::value_type>::type());
 			}
+		}
+
+		template<class T, class Tag>
+		void write(const T& t, Tag tag, rpc::traits::exception_tag)
+		{
+			std::string what(t.what());
+			write(what, tag, rpc::traits::std_container_tag());
 		}
 
 	private:

@@ -306,6 +306,10 @@ namespace boost{ namespace rpc {
 				make_arg<Select> >,
 				traits::is_not_void_parameter> type;
 		};
+
+		template<typename Select, typename Args>
+		struct args_view : mpl::filter_view<mpl::transform_view<Args, make_arg<Select> >, traits::is_not_void_parameter>
+		{};
 	}
 
 }}

@@ -19,9 +19,8 @@
 #include <boost/fusion/container/vector/convert.hpp>
 #include <boost/fusion/functional/adapter/unfused_typed.hpp>
 #include <boost/fusion/functional/invocation/invoke_procedure.hpp>
+#include <boost/fusion/sequence/intrinsic/back.hpp>
 #include <boost/system/error_code.hpp>
-//#include <boost/optional/optional.hpp>
-//#include <boost/variant/variant.hpp>
 
 namespace boost{ namespace rpc{
 
@@ -38,6 +37,29 @@ struct async_call_header
 
 namespace detail
 {
+	struct error_code_arg
+	{
+		typedef const system::error_code& type;
+
+		template<class Protocol>
+		void read(Protocol&)
+		{
+		}
+
+		template<class Protocol>
+		const system::error_code& get(Protocol&) const
+		{
+			return m_error_code;
+		}
+
+		void assign(const system::error_code& ec)
+		{
+			m_error_code = ec;
+		}
+
+		system::error_code m_error_code;
+	};
+
 	template<class Signature, class Placeholders = void>
 	struct async_input_args
 	{
@@ -51,32 +73,19 @@ namespace detail
 		>::type type;
 	};
 
-/*
-	template<class Error, class Exceptions>
-	struct build_error_type
-	{
-		typedef typename boost::make_variant_over<
-			typename mpl::push_back<Exceptions, Error>::type>::type error_variant;
-
-		typedef boost::optional<error_variant> type;
-	};
-
-	template<class Error>
-	struct build_error_type<Error, void>
-	{
-		typedef boost::optional<Error> type;
-	};
-*/
-
 	template<class Signature, class Placeholders = void>
 	struct async_output_args
 	{
-		typedef typename fusion::result_of::as_vector<
-			typename detail::make_args<traits::remote_of_,
-			typename Signature::parameter_types, Placeholders>::type
-		>::type arg_types;
+		typedef detail::args_view<traits::remote_of_,
+			typename Signature::parameter_types> args_view;
 
-		typedef typename fusion::result_of::as_vector<
+		typedef typename fusion::result_of::as_vector
+			<mpl::joint_view
+				<mpl::filter_view<args_view, traits::is_read_>,
+				mpl::single_view<error_code_arg> >
+			>::type type;
+
+/*		typedef typename fusion::result_of::as_vector<
 			typename detail::if_void<typename Signature::result_type,
 				mpl::filter_view<arg_types, traits::is_read_>,
 				mpl::joint_view<
@@ -84,7 +93,7 @@ namespace detail
 					mpl::filter_view<arg_types, traits::is_read_>
 				>
 			>::type
-		>::type type;
+		>::type type;*/
 	};
 
 	template<class Protocol, class Signature, class Remote>
@@ -114,27 +123,6 @@ namespace detail
 		typename Signature::id_type id;
 	};
 
-	template<class Protocol>
-	struct null_reader
-	{
-		null_reader(Protocol, const system::error_code& err)
-			: err(err)
-		{}
-
-		template<class T, class Tag>
-		void operator()(T&, Tag)
-		{
-		}
-
-		template<class Tag>
-		void operator()(system::error_code& ec, Tag)
-		{
-			ec = err;
-		}
-
-		system::error_code err;
-	};
-
 	template<class Protocol, class Signature, class Remote, class Handler>
 	struct async_remote_impl
 	{
@@ -158,24 +146,46 @@ namespace detail
 
 			receive_handler(Protocol p, Handler h) : handler_base(p, h) {}
 
-			template<class Remote>
 			void operator()(Remote& r, system::error_code const& err, std::vector<char>& input)
 			{
 				output_arg_types args;
 
+				fusion::back(args).assign(err);
+
 				if(!err)
 				{
 					reader r(p, input);
-					fusion::for_each(args,
-						functional::read_arg<reader>(r));
+					try
+					{
+						fusion::for_each(args,
+							functional::read_arg<reader>(r));
+					}
+					catch(std::exception&)
+					{
+						fusion::back(args).assign(serialization_error);
+						fusion::invoke_procedure(h,
+							fusion::transform(args, functional::arg_type<reader>(r)));
+						return;
+					}
 					fusion::invoke_procedure(h,
 						fusion::transform(args, functional::arg_type<reader>(r)));
 				}
-				else if(err.category() == get_error_category())
+				else if(err == remote_exception)
 				{
-					if(err.value() == remote_exception)
+//					Signature::exception_handler::exception_type e;
+					reader r(p, input);
+					std::exception e;
+					r(e, tags::parameter());
+					try
 					{
+						throw boost::enable_current_exception(e);
 					}
+					catch(std::exception&)
+					{
+						fusion::invoke_procedure(h,
+							fusion::transform(args, functional::arg_type<reader>(r)));
+					}
+					// NOTE: Output arguments are not decoded here, instead leave them default initialized.
 				}
 
 			}
@@ -193,13 +203,13 @@ namespace detail
 				}
 				else
 				{
-					typedef null_reader<Protocol> reader;
 					output_arg_types args;
-					reader r(p, err);
+					fusion::back(args).assign(err);
+/*					reader r(p, err);
 					fusion::for_each(args,
 						functional::read_arg<reader>(r));
 					fusion::invoke_procedure(h,
-						fusion::transform(args, functional::arg_type<reader>(r)));
+						fusion::transform(args, functional::arg_type<reader>(r)));*/
 				}
 			}
 

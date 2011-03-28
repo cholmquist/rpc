@@ -16,6 +16,7 @@ namespace rpc{
 enum errors
 {
 	remote_exception = 1,
+	serialization_error = 2,
 };
 
 namespace detail
@@ -32,6 +33,10 @@ namespace detail
 		{
 			if(ev == remote_exception)
 				return "remote exception";
+			else if(ev == serialization_error)
+			{
+				return "serialization_error";
+			}
 			return "rpc.error";
 		}
 
@@ -43,6 +48,13 @@ const boost::system::error_category& get_error_category()
 	static detail::error_category instance;
 	return instance;
 }
+
+inline boost::system::error_code make_error_code(errors e)
+{
+  return boost::system::error_code(
+      static_cast<int>(e), boost::rpc::get_error_category());
+}
+
 
 } // namespace rpc
 
