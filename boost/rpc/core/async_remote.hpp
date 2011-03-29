@@ -23,7 +23,7 @@
 #include <boost/system/error_code.hpp>
 
 namespace boost{ namespace rpc{
-
+/*
 template<class SignatureID, class HandlerID>
 struct async_call_header
 {
@@ -34,7 +34,7 @@ struct async_call_header
 		, handler_id(hid)
 	{}
 };
-
+*/
 namespace detail
 {
 	struct error_code_arg
@@ -103,7 +103,6 @@ namespace detail
 
 		typedef typename Protocol::input_type input;
 		typedef typename Protocol::writer writer;
-		typedef typename async_call_header<typename Signature::id_type, typename Remote::handler_id> header_type;
 
 		async_remote_procedure_impl(Protocol p, typename Signature::id_type id, Remote r)
 			: p(p), id(id), r(r) {}
@@ -111,11 +110,10 @@ namespace detail
 		template<class Args>
 		void operator()(const Args& args)
 		{
-			input in; // This line may cause some trouble.. best would be to call p.make_input(), but not all buffer types are copyable (std::streambuf)
+			input in;
 			fusion::for_each(args,
 				functional::write_arg<writer>(writer(p, in)));
-			header_type header(id, r.empty_handler_id());
-			r.async_send(header, in);
+			r.async_call(id, in);
 		}
 
 		Protocol p;
@@ -127,7 +125,6 @@ namespace detail
 	struct async_remote_impl
 	{
 		typedef typename async_output_args<Signature>::type output_arg_types;
-		typedef typename Remote::handler_id handler_id;
 
 		struct handler_base
 		{
@@ -146,7 +143,7 @@ namespace detail
 
 			receive_handler(Protocol p, Handler h) : handler_base(p, h) {}
 
-			void operator()(Remote& r, system::error_code const& err, std::vector<char>& input)
+			void operator()(system::error_code const& err, std::vector<char>& input)
 			{
 				output_arg_types args;
 
@@ -186,11 +183,16 @@ namespace detail
 							fusion::transform(args, functional::arg_type<reader>(r)));
 					}
 				}
+				else
+				{
+					output_arg_types args;
+					fusion::back(args).assign(err);
+				}
 
 			}
 		};
 
-		struct send_handler : handler_base
+/*		struct send_handler : handler_base
 		{
 			send_handler(Protocol p, Handler h, handler_id hid) : handler_base(p, h), hid(hid) {}
 
@@ -204,20 +206,20 @@ namespace detail
 				{
 					output_arg_types args;
 					fusion::back(args).assign(err);
-/*					reader r(p, err);
+					reader r(p, err);
 					fusion::for_each(args,
 						functional::read_arg<reader>(r));
 					fusion::invoke_procedure(h,
-						fusion::transform(args, functional::arg_type<reader>(r)));*/
+						fusion::transform(args, functional::arg_type<reader>(r)));
 				}
 			}
 
 			handler_id hid;
 
-		};
+		};*/
 
 		async_remote_impl(Protocol p, typename Signature::id_type id, Remote r, Handler h)
-			: p(p), sigid(id), r(r), h(h) {}
+			: p(p), id(id), r(r), h(h) {}
 
 		typedef void result_type;
 
@@ -225,20 +227,18 @@ namespace detail
 		void operator()(const Args& args)
 		{
 			typedef typename Protocol::writer writer;
-			typedef typename async_call_header<typename Signature::id_type, typename Remote::handler_id> header;
 
 			Protocol::input_type input;
 			fusion::for_each(args,
 				functional::write_arg<writer>(writer(p, input)));
-			header head(sigid, r.allocate_handler_id());
-			r.async_send(head, input, 
-				send_handler(p, h, head.handler_id));
+			r.async_call(id, input, 
+				receive_handler(p, h));
 		}
 
 		Protocol p;
 		Remote r;
 		Handler h;
-		typename Signature::id_type sigid;
+		typename Signature::id_type id;
 	};
 }
 

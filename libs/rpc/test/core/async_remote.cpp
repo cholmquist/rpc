@@ -12,7 +12,7 @@
 #include <boost/rpc/protocol/bitwise.hpp>
 #include <boost/exception/current_exception_cast.hpp>
 #include <boost/detail/lightweight_test.hpp>
-#include <boost/function/function3.hpp>
+#include <boost/function/function2.hpp>
 #include <vector>
 #include <string>
 
@@ -32,11 +32,9 @@ enum error_mode
 struct service
 {
 	typedef std::vector<char> buffer_type;
-	typedef int handler_id;
-	typedef rpc::async_call_header<std::string, handler_id> async_call_header;
 	typedef std::string signature_id;
 
-	typedef boost::function<void(service&, const error_code&, buffer_type&)> response_callback;
+	typedef boost::function<void(const error_code&, buffer_type&)> response_callback;
 
 
 	service(error_mode err)
@@ -44,48 +42,38 @@ struct service
 		, m_error_mode(err)
 	{}
 
-	handler_id allocate_handler_id()
-	{
-		return ++m_handler_id_gen;
-	}
-
-	handler_id empty_handler_id()
-	{
-		return 0;
-	}
-
-	void async_send(async_call_header, std::vector<char>& data)
+	void async_call(const signature_id& id, std::vector<char>& data)
 	{
 	}
 
-	int async_send(async_call_header, std::vector<char>& data, response_callback c)
+/*	int async_send(async_call_header, std::vector<char>& data, response_callback c)
 	{
 		c(*this, error_code(), data);
 		return 0;
-	}
+	}*/
 
-	void async_receive(handler_id hid, response_callback c)
+	void async_call(const signature_id& id, std::vector<char>& data, response_callback c)
 	{
 		std::vector<char> v;
 		if(m_error_mode == no_error) // generate one char as respone
 		{
 			rpc::protocol::bitwise::writer w(rpc::protocol::bitwise(), v);
 			w((char)CHAR_RESULT, rpc::tags::parameter());
-			c(*this, error_code(), v);
+			c(error_code(), v);
 		}
 		else if(m_error_mode == serialization_error) // response buffer not filled in
 		{
-			c(*this, error_code(), v);
+			c(error_code(), v);
 		}
-		else if(m_error_mode == remote_exception_error)
+		else if(m_error_mode == remote_exception_error) // generate an exception
 		{
 			rpc::protocol::bitwise::writer w(rpc::protocol::bitwise(), v);
 			w(rpc_test::exception("test"), rpc::tags::parameter());
-			c(*this, rpc::remote_exception, v);
+			c(rpc::remote_exception, v);
 		}
 		else if(m_error_mode == remote_exception_and_serialization_error) // response buffer not filled in
 		{
-			c(*this, rpc::remote_exception, v);
+			c(rpc::remote_exception, v);
 		}
 	}
 
