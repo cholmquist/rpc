@@ -17,7 +17,7 @@
 #include <boost/fusion/container/vector/convert.hpp>
 #include <boost/fusion/functional/invocation/invoke.hpp>
 #include <boost/fusion/adapted/mpl.hpp>
-#include <boost/fusion/include/mpl.hpp>
+#include <boost/system/error_code.hpp>
 #include <utility>
 
 namespace boost{ namespace rpc
@@ -81,8 +81,8 @@ namespace boost{ namespace rpc
 
 		typedef typename Protocol::reader reader;
 		typedef typename Protocol::writer writer;
-		typedef typename Protocol::input input;
-		typedef typename Protocol::output output;
+		typedef typename Protocol::input_type input;
+		typedef typename Protocol::output_type output;
 
 		typedef exception_id result_type;
 

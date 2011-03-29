@@ -170,14 +170,14 @@ namespace detail
 					fusion::invoke_procedure(h,
 						fusion::transform(args, functional::arg_type<reader>(r)));
 				}
-				else if(err == remote_exception)
+				else if(err == remote_exception) // NOTE: Output arguments are not decoded here, instead leave them default initialized.
 				{
 //					Signature::exception_handler::exception_type e;
 					reader r(p, input);
-					std::exception e;
-					r(e, tags::parameter());
 					try
 					{
+						std::exception e;
+						r(e, tags::parameter());
 						throw boost::enable_current_exception(e);
 					}
 					catch(std::exception&)
@@ -185,7 +185,6 @@ namespace detail
 						fusion::invoke_procedure(h,
 							fusion::transform(args, functional::arg_type<reader>(r)));
 					}
-					// NOTE: Output arguments are not decoded here, instead leave them default initialized.
 				}
 
 			}

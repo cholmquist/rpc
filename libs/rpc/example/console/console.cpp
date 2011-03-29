@@ -26,8 +26,8 @@ struct console_signature : public rpc::signature<std::string, Signature, Excepti
 
 struct my_protocol
 {
-	typedef std::istream input;
-	typedef std::ostream output;
+	typedef std::istream input_type;
+	typedef std::ostream output_type;
 
 	struct reader
 	{

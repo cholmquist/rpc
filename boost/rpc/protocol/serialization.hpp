@@ -13,6 +13,7 @@
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/vector.hpp>
+#include <boost/serialization/variant.hpp>
 #include <exception>
 
 namespace boost
