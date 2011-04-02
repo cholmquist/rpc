@@ -19,6 +19,26 @@
 
 namespace rpc_test
 {
+	struct udt
+	{
+		udt() : value(0) {}
+		udt(int v, std::string s) : value(v), str(s) {}
+		int value;
+		std::string str;
+
+		bool operator==(const udt& rhs) const
+		{
+			return value == rhs.value && str == rhs.str;
+		}
+
+		template<class Archive>
+		void serialize(Archive & ar, const unsigned int version)
+		{
+			ar & value;
+			ar & str;
+		}
+
+	};
 
 template<class Serialize>
 struct serialize
@@ -37,6 +57,7 @@ struct serialize
 		roundtrip(variant<char, std::string>(std::string("test2")));
 		array<int, 4> a = {1, 100, 42, 10001};
 		roundtrip(a);
+		roundtrip(udt(5, "test3"));
 	}
 
 	template<class T>

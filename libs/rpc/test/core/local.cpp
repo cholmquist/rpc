@@ -5,7 +5,7 @@
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ==============================================================================*/
 
-#include "signatures.hpp"
+#include "../common/signatures.hpp"
 #include <boost/rpc/core/local.hpp>
 #include <boost/rpc/protocol/bitwise.hpp>
 #include <boost/detail/lightweight_test.hpp>

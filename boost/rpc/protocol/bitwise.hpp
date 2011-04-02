@@ -42,6 +42,7 @@ namespace boost{ namespace rpc { namespace traits {
 	struct variant_container_tag {};
 	struct exception_tag {};
 	struct array_container_tag : std_container_tag {};
+	struct unknown_tag {};
 
 	namespace detail
 	{
@@ -52,7 +53,10 @@ namespace boost{ namespace rpc { namespace traits {
 	}
 
 	template<class T, typename Active = void>
-	struct container_tag_of;
+	struct container_tag_of
+	{
+		typedef unknown_tag type;
+	};
 
 	template<class T>
 	struct container_tag_of<T, typename boost::enable_if<fusion::detail::has_fusion_tag<T> >::type>
@@ -263,6 +267,12 @@ public:
 			detail::assign_exception_what(t, what);
 		}
 
+		template<class T, class Tag>
+		void read(T& t, Tag tag, rpc::traits::unknown_tag)
+		{
+			t.serialize(*this, 0);
+		}
+
 
 
 	private:
@@ -283,7 +293,6 @@ public:
 		template<class T, class Tag>
 		void operator()(const T& t, Tag tag)
 		{
-			// If your code fails to compile here, the type is not supported
 			this->write(t, tag, typename rpc::traits::container_tag_of<T>::type());
 		}
 
@@ -329,12 +338,34 @@ public:
 			write(what, tag, rpc::traits::std_container_tag());
 		}
 
+		template<class T, class Tag>
+		void write(const T& t, Tag tag, rpc::traits::unknown_tag)
+		{
+			const_cast<T&>(t).serialize(*this, 0);
+			//serialize(*this, t);
+		}
+
 	private:
 		output_type& m_output;
 
 	};
 
 };
+
+template<class T>
+bitwise::reader& operator&(bitwise::reader& r, T&t)
+{
+	r(t, rpc::tags::parameter());
+	return r;
+}
+
+template<class T>
+bitwise::writer& operator&(bitwise::writer& w, const T&t)
+{
+	w(t, rpc::tags::parameter());
+	return w;
+}
+
 
 }}}
 
