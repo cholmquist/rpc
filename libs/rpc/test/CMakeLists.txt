@@ -11,6 +11,7 @@ set(TESTS
 	serialize/bitwise.cpp
 	serialize/binary_serialization.cpp
 	service/async_tcp.cpp
+	complete.cpp
 )
 
 foreach( test ${TESTS} )

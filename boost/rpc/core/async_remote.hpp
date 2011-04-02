@@ -111,9 +111,8 @@ namespace detail
 		void operator()(const Args& args)
 		{
 			input in;
-			fusion::for_each(args,
-				functional::write_arg<writer>(writer(p, in)));
-			r.async_call(id, in);
+			fusion::for_each(args, functional::write_arg<writer>(writer(p, in)));
+			rpc_async_call(r, id, in);
 		}
 
 		Protocol p;
@@ -143,7 +142,7 @@ namespace detail
 
 			receive_handler(Protocol p, Handler h) : handler_base(p, h) {}
 
-			void operator()(system::error_code const& err, std::vector<char>& input)
+			void operator()(std::vector<char>& input, system::error_code const& err)
 			{
 				output_arg_types args;
 
@@ -231,8 +230,7 @@ namespace detail
 			Protocol::input_type input;
 			fusion::for_each(args,
 				functional::write_arg<writer>(writer(p, input)));
-			r.async_call(id, input, 
-				receive_handler(p, h));
+			rpc_async_call(r, id, input, receive_handler(p, h));
 		}
 
 		Protocol p;

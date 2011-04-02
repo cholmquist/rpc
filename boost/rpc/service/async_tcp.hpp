@@ -6,7 +6,8 @@
 #include <boost/array.hpp>
 #include <boost/assert.hpp>
 #include <boost/smart_ptr/shared_ptr.hpp>
-#include <boost/function/function3.hpp>
+#include <boost/smart_ptr/enable_shared_from_this.hpp>
+#include <boost/function/function2.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/buffer.hpp>
@@ -14,6 +15,8 @@
 #include <boost/asio/read.hpp>
 #include <boost/checked_delete.hpp>
 #include <boost/intrusive/slist.hpp>
+
+#include <boost/bind.hpp> // TODO: Remove dep. on bind
 
 namespace boost{ namespace rpc{
 	
@@ -81,7 +84,7 @@ public:
 
 	typedef async_asio_stream<Derived, Header, Stream, Serialize> async_stream_base;
 	typedef std::vector<char> buffer_type;
-	typedef boost::function<void(boost::shared_ptr<Derived>, buffer_type&, system::error_code)> async_handler;
+	typedef boost::function<void(buffer_type&, system::error_code)> async_handler;
 	typedef Header header_type;
 	typedef Stream next_layer_type;
 	typedef Serialize serialize_type;
@@ -221,7 +224,7 @@ private:
 		bool do_send = !m_send_queue.empty(); // Check queue before invoking handler, as it may call async_send
 		if(p->m_handler) // The handler is optional
 		{
-			p->m_handler(static_cast<Derived*>(this)->shared_from_this(), p->m_payload, err);
+			p->m_handler(p->m_payload, err);
 		}
 		if(do_send)
 		{
