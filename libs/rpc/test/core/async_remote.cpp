@@ -27,6 +27,7 @@ enum error_mode
 	serialization_error,
 	remote_exception_error,
 	remote_exception_and_serialization_error,
+	increment_no_error,
 };
 
 
@@ -57,6 +58,12 @@ void rpc_async_call(error_mode mode, const signature_id, std::vector<char>& data
 	{
 		c(v, rpc::remote_exception);
 	}
+	else if(mode == increment_no_error)
+	{
+		rpc::protocol::bitwise::writer w(rpc::protocol::bitwise(), v);
+		w((int)1, rpc::tags::parameter());
+		c(v, error_code());
+	}
 }
 
 void response_no_error(char x, error_code ec)
@@ -86,6 +93,10 @@ void response_remote_exception_and_serialization_error(char x, error_code ec)
 	BOOST_TEST(boost::current_exception_cast<rpc::protocol::bitwise_reader_error>() != 0);
 }
 
+void response_increment(int i, error_code ec)
+{
+	BOOST_TEST(i == 1);
+}
 
 int main()
 {
@@ -95,6 +106,7 @@ int main()
 	async_remote(rpc_test::void_char, serialization_error, &response_serialization_error)(1);
 	async_remote(rpc_test::void_char, remote_exception_error, &response_remote_exception_error)(1);
 	async_remote(rpc_test::void_char, remote_exception_and_serialization_error, &response_remote_exception_and_serialization_error)(1);
+	async_remote(rpc_test::increment, increment_no_error, &response_increment)(1);
 	return boost::report_errors();
 }
 

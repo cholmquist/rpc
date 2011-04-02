@@ -77,13 +77,24 @@ namespace detail
 	struct async_output_args
 	{
 		typedef detail::args_view<traits::remote_of_,
-			typename Signature::parameter_types> args_view;
+			typename Signature::parameter_types> remote_args;
 
-		typedef typename fusion::result_of::as_vector
-			<mpl::joint_view
-				<mpl::filter_view<args_view, traits::is_read_>,
-				mpl::single_view<error_code_arg> >
-			>::type type;
+//		typedef typename fusion::result_of::as_vector
+		typedef	mpl::joint_view<mpl::filter_view<remote_args, traits::is_read_>,
+					mpl::single_view<error_code_arg> > output_args;
+
+		typedef typename fusion::result_of::as_vector<
+			typename detail::if_void<typename Signature::result_type,
+				output_args,
+				mpl::joint_view<
+					mpl::single_view<typename detail::make_result<traits::remote_of_, typename Signature::result_type>::type >,
+					output_args>
+			>::type
+		>::type type;
+
+/*		mpl::eval_if<boost::is_void<typename Signature::result_type>,
+			mpl::identity<output_args>,
+			mpl::identity<*/
 
 /*		typedef typename fusion::result_of::as_vector<
 			typename detail::if_void<typename Signature::result_type,
