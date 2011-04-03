@@ -1,3 +1,9 @@
+int main()
+{
+	return 0;
+}
+
+#if 0
 #include <boost/rpc/core/placeholder.hpp>
 #include <boost/rpc/core/arg.hpp>
 #include <boost/fusion/container/list.hpp>
@@ -86,3 +92,4 @@ BOOST_MPL_ASSERT(( mpl::equal<vector1_int, mpl::vector<int>>));
 
 typedef insert_at<fusion::list<>, mpl::int_<0>, int>::type vector1_int;
 */
+#endif

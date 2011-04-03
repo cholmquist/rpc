@@ -77,16 +77,18 @@ enum receive_state
 	rs_payload_buffer,
 };
 
-template<class Derived, class Header, class Stream, class Serialize>
+// AsyncStream : Asio.AsyncReadStream, Asio.AsyncWriteStream
+
+template<class Derived, class Header, class AsyncStream, class Serialize>
 class async_asio_stream
 {
 public:
 
-	typedef async_asio_stream<Derived, Header, Stream, Serialize> async_stream_base;
+	typedef async_asio_stream<Derived, Header, AsyncStream, Serialize> async_stream_base;
 	typedef std::vector<char> buffer_type;
 	typedef boost::function<void(buffer_type&, system::error_code)> async_handler;
 	typedef Header header_type;
-	typedef Stream next_layer_type;
+	typedef AsyncStream next_layer_type;
 	typedef Serialize serialize_type;
 	typedef rpc::detail::packet<async_handler> packet;
 	typedef typename packet::list_type packet_list;
@@ -232,7 +234,7 @@ private:
 		}
 	}
 
-	Stream	m_socket;
+	AsyncStream	m_socket;
 	serialize_type m_serialize;
 	packet_list m_send_queue;
 	std::vector<char> m_recv_payload;
@@ -240,46 +242,8 @@ private:
 	buffer_type m_payload_buffer;
 	header_type m_recv_header;
 	rpc::detail::control_data::decoder m_control_decoder;
-/*	typename headerx_type::decoder m_decoder;
-	uint32_t m_max_payload_size;*/
 	rpc::detail::receive_buffer<64> m_recv_buffer;
 };
-
-/*
-			{
-				std::size_t payload_size = m_decoder.payload_size();
-				if(payload_size == 0)
-				{
-					recv_new_header = priv_dispatch(system::error_code());
-					m_recv_payload.clear();
-					m_decoder.reset();
-				}
-				else if(payload_size < m_max_payload_size)
-				{
-					m_recv_payload.resize(payload_size);
-					std::size_t available_payload = m_recv_buffer.flush(&m_recv_payload[0], payload_size);
-					if(std::size_t remaining_payload = (payload_size - available_payload))
-					{
-						asio::async_read(m_socket, // Read directly into payload buffer
-							asio::buffer(&m_recv_payload[0] + available_payload, remaining_payload),
-							boost::bind(&async_stream::priv_handle_recv_payload, static_cast<Derived*>(this)->shared_from_this(), _1, _2));
-						recv_new_header = false;
-						break;
-					}
-					else
-					{
-						recv_new_header = priv_dispatch(boost::system::error_code());
-						m_recv_payload.clear();
-						m_decoder.reset();
-					}
-				}
-				else
-				{
-					// ERROR, payload size overflow
-					priv_dispatch(boost::system::error_code()); // TODO: New error code here
-				}
-			}*/
-
 
 template<class StreamProtocol>
 class stream_connector

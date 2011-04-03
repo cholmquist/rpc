@@ -12,7 +12,6 @@
 #include <boost/variant/get.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/smart_ptr/enable_shared_from_this.hpp>
-#include <boost/bind.hpp>
 #include <boost/detail/lightweight_test.hpp>
 
 namespace rpc=boost::rpc;
@@ -122,17 +121,19 @@ struct server
 typedef boost::shared_ptr<client> client_ptr;
 typedef boost::shared_ptr<server> server_ptr;
 
+client_ptr g_client;
+server_ptr g_server;
 
-void on_accept(boost::system::error_code ec, server_ptr server)
+void on_accept(boost::system::error_code ec)
 {
 	if(!ec)
 	{
 		test_results[test_server_accept] = true;
-		server->start();
+		g_server->start();
 	}
 }
 
-void on_send_header_b(client_ptr client, std::vector<char>&, const boost::system::error_code& ec)
+void on_send_header_b(std::vector<char>&, const boost::system::error_code& ec)
 {
 	if(!ec)
 	{
@@ -140,33 +141,33 @@ void on_send_header_b(client_ptr client, std::vector<char>&, const boost::system
 	}
 }
 
-void on_send_header_a(client_ptr client, std::vector<char>&, const boost::system::error_code& ec)
+void on_send_header_a(std::vector<char>&, const boost::system::error_code& ec)
 {
 	if(!ec)
 	{
 		test_results[test_send_header_a] = true;
-		client->async_send(header_b(value_header_b), std::vector<char>(data_header_b.begin(), data_header_b.end()), &on_send_header_b);
+		g_client->async_send(header_b(value_header_b), std::vector<char>(data_header_b.begin(), data_header_b.end()), &on_send_header_b);
 	}
 }
 
-void on_connect(boost::system::error_code ec, client_ptr client)
+void on_connect(boost::system::error_code ec)
 {
 	if(!ec)
 	{
 		test_results[test_client_connect] = true;
-		client->async_send(header_a(value_header_a), std::vector<char>(), &on_send_header_a);
+		g_client->async_send(header_a(value_header_a), std::vector<char>(), &on_send_header_a);
 	}
 }
 
 int main()
 {
 	boost::asio::io_service ios;
-	client_ptr client(new client(ios));
-	server_ptr server(new server(ios));
+	g_client.reset(new client(ios));
+	g_server.reset(new server(ios));
 	rpc::service::stream_connector<asio::ip::tcp> connector(ios);
-	rpc::service::stream_acceptor<asio::ip::tcp> acceptor(ios, "127.0.0.1", "10000");
-	acceptor.async_accept(server->next_layer(), boost::bind(&on_accept, _1, server));
-	connector.async_connect(client->next_layer(), "127.0.0.1", "10000", boost::bind(&on_connect, _1, client));
+	rpc::service::stream_acceptor<asio::ip::tcp> acceptor(ios, "127.0.0.1", "10001");
+	acceptor.async_accept(g_server->next_layer(), &on_accept);
+	connector.async_connect(g_client->next_layer(), "127.0.0.1", "10001", &on_connect);
 	ios.run();
 	BOOST_TEST(test_results[test_client_connect]);
 	BOOST_TEST(test_results[test_server_accept]);
@@ -174,5 +175,7 @@ int main()
 	BOOST_TEST(test_results[test_recv_header_a]);
 	BOOST_TEST(test_results[test_send_header_b_with_data]);
 	BOOST_TEST(test_results[test_recv_header_b_with_data]);
+	g_client.reset();
+	g_server.reset();
 	return boost::report_errors();
 }

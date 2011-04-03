@@ -10,13 +10,13 @@
 
 #include <boost/system/error_code.hpp>
 
-namespace boost{
-namespace rpc{
+namespace boost{ namespace rpc{
 
 enum errors
 {
 	remote_exception = 1,
 	serialization_error = 2,
+	internal_error = 3,
 };
 
 namespace detail
