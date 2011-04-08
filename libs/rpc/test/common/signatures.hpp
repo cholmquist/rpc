@@ -31,19 +31,19 @@ namespace rpc_test
 	};
 
 	template<class Signature, class Exception = boost::rpc::no_exception_handler>
-	struct signature : boost::rpc::signature<std::string, Signature>
+	struct signature : boost::rpc::signature<std::string, Signature, Exception>
 	{
-		signature(std::string id) : boost::rpc::signature<std::string, Signature>(id) {}
+		signature(std::string id)
+			: boost::rpc::signature<std::string, Signature, Exception>(id) {}
 	};
 
-	typedef boost::rpc::placeholder<int> context_id;
-	const context_id _context_id = {};
+	const boost::rpc::placeholder<int> _context_id;
 	
 
 	static const signature<void(char, char&), boost::rpc::throws<exception> > void_char("test");
 	static const signature<int(int), boost::rpc::throws<exception> > increment("increment");
 	static const signature<void()> quit("quit");
-	static const signature<int(context_id)> get_context_id("get_context_id"); 
+	static const signature<int()> get_context_id("get_context_id"); 
 
 }
 
