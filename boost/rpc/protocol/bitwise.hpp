@@ -172,6 +172,7 @@ struct bitwise_reader_error : std::exception
 	}
 };
 
+/*
 class bitwise
 {
 public:
@@ -184,14 +185,17 @@ public:
 	bitwise(std::size_t reserve_size = 0)
 		: reserve_size(reserve_size)
 	{}
-
-	struct reader
+*/
+	template<class Buffer>
+	struct bitwise_reader
 	{
-		reader(bitwise p, input_type& in)
+		typedef Buffer input_type;
+
+		bitwise_reader(input_type& in)
 			: m_input(in)
 			, m_cursor(0)
 		{
-			m_input.reserve(p.reserve_size);
+//			m_input.reserve(p.reserve_size);
 		}
 
 		template<class T, class Tag>
@@ -273,21 +277,20 @@ public:
 			t.serialize(*this, 0);
 		}
 
-
-
 	private:
 		input_type&	m_input;
 		std::size_t m_cursor;
 	};
 
-	struct writer
+	template<class Buffer>
+	struct bitwise_writer
 	{
 	public:
+		typedef Buffer output_type;
 
-		writer(bitwise p, output_type& out)
+		bitwise_writer(output_type& out)
 			: m_output(out)
 		{
-			m_output.reserve(p.reserve_size);
 		}
 
 		template<class T, class Tag>
@@ -349,18 +352,18 @@ public:
 		output_type& m_output;
 
 	};
-
+/*
 };
-
-template<class T>
-bitwise::reader& operator&(bitwise::reader& r, T&t)
+*/
+template<class Buffer, class T>
+bitwise_reader<Buffer>& operator&(bitwise_reader<Buffer>& r, T& t)
 {
 	r(t, rpc::tags::parameter());
 	return r;
 }
 
-template<class T>
-bitwise::writer& operator&(bitwise::writer& w, const T&t)
+template<class Buffer, class T>
+bitwise_writer<Buffer>& operator&(bitwise_writer<Buffer>& w, const T& t)
 {
 	w(t, rpc::tags::parameter());
 	return w;
