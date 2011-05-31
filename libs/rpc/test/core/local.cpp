@@ -15,6 +15,7 @@ using boost::system::error_code;
 
 char CHAR_INPUT = 'A';
 char CHAR_OUTPUT = 'Z';
+int CONTEXT_ID = 101;
 
 typedef std::vector<char> buffer_type;
 
@@ -58,16 +59,30 @@ struct protocol
 
 	struct reader : rpc::protocol::bitwise_reader<buffer_type>
 	{
+		using rpc::protocol::bitwise_reader<buffer_type>::operator();
+
 		reader(protocol p, input& i)
 			: rpc::protocol::bitwise_reader<buffer_type>(i.buffer) 
+			, input_(i)
 		{}
+
+		int operator()(rpc::tags::placeholder)
+		{
+			return input_.id;
+		}
+		input& input_;
 	};
 
 	struct writer : rpc::protocol::bitwise_writer<buffer_type>
 	{
+		using rpc::protocol::bitwise_writer<buffer_type>::operator();
 		writer(protocol p, output& o)
 			: rpc::protocol::bitwise_writer<buffer_type>(o.buffer) 
 		{}
+		int operator()(rpc::tags::placeholder)
+		{
+			return 1;
+		}
 	};
 };
 
@@ -83,10 +98,16 @@ void void_char_throw(char in, char& out)
 	boost::throw_exception(rpc_test::exception("test"));
 }
 
+int get_context_id(int id)
+{
+	BOOST_TEST_EQ(id, CONTEXT_ID);
+	return id;
+}
+
 int main()
 {
 	rpc::local<protocol> l;
-	input i(5);
+	input i(CONTEXT_ID);
 	output o;
 	{
 		i.clear();
@@ -101,6 +122,14 @@ int main()
 		i.push_arg((char) CHAR_INPUT);
 		l(rpc_test::void_char, &void_char_throw).second(i, o);
 		BOOST_TEST(o.pop_arg<rpc_test::exception>() == rpc_test::exception("test"));
+	}
+
+	{
+		i.clear();
+		o.clear();
+		i.push_arg((char) CHAR_INPUT);
+		l(rpc_test::get_context_id, &get_context_id, rpc::placeholders(rpc_test::_context_id = _1) ).second(i, o);
+/*		BOOST_TEST(o.pop_arg<rpc_test::exception>() == rpc_test::exception("test"));*/
 	}
 	return boost::report_errors();
 }
