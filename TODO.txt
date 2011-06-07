@@ -1,0 +1,5 @@
+core_local fails, since the context (in) is not read during invocation of the user function.
+This is the old issue that keeps crawling back, how to split the contexts in two (in, out) regarding placeholders.
+Or, if it's even a good idea to split in two contexts, but I believe that's necessary for the async case. The response context
+will definitely not be the same as the remote context.
+
