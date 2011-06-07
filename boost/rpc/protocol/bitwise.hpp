@@ -186,7 +186,7 @@ public:
 		: reserve_size(reserve_size)
 	{}
 */
-	template<class Buffer>
+	template<class Buffer = std::vector<char> >
 	struct bitwise_reader
 	{
 		typedef Buffer input_type;
@@ -282,7 +282,7 @@ public:
 		std::size_t m_cursor;
 	};
 
-	template<class Buffer>
+	template<class Buffer = std::vector<char> >
 	struct bitwise_writer
 	{
 	public:
