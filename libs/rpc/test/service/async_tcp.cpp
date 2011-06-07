@@ -33,6 +33,18 @@ const boost::array<char, 4> data_header_b = {1, 2, 3, 4};
 static const char value_header_a = 101;
 static const char value_header_b = 102;
 
+struct Serialize
+{
+	struct reader : rpc::protocol::bitwise_reader<>
+	{
+		reader(Serialize, std::vector<char> & v) : rpc::protocol::bitwise_reader<>(v) {}
+	};
+	struct writer : rpc::protocol::bitwise_writer<>
+	{
+		writer(Serialize, std::vector<char> & v) : rpc::protocol::bitwise_writer<>(v) {}
+	};
+};
+
 struct header_a : boost::array<char, 1>
 {
 	header_a(char value = 0)
@@ -74,7 +86,7 @@ struct is_array<header_b> : boost::true_type {};
 typedef boost::variant<header_a, header_b> header_variant;
 
 struct client
-	: boost::rpc::service::async_asio_stream<client, header_variant, boost::asio::ip::tcp::socket, rpc::protocol::bitwise>
+	: boost::rpc::service::async_asio_stream<client, header_variant, boost::asio::ip::tcp::socket, Serialize>
 	, boost::enable_shared_from_this<client>
 {
 	client(asio::io_service& ios) : async_stream_base(ios) {}
@@ -89,7 +101,7 @@ struct client
 };
 
 struct server
-	: boost::rpc::service::async_asio_stream<server, header_variant, boost::asio::ip::tcp::socket, rpc::protocol::bitwise>
+	: boost::rpc::service::async_asio_stream<server, header_variant, boost::asio::ip::tcp::socket, Serialize>
 	, boost::enable_shared_from_this<server>
 {
 	server(asio::io_service& ios) : async_stream_base(ios) {}

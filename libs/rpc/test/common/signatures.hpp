@@ -43,7 +43,7 @@ namespace rpc_test
 	static const signature<void(char, char&), boost::rpc::throws<exception> > void_char("test");
 	static const signature<int(int), boost::rpc::throws<exception> > increment("increment");
 	static const signature<void()> quit("quit");
-	static const signature<int()> get_context_id("get_context_id"); 
+	static const signature<void()> get_context_id("get_context_id"); 
 
 }
 

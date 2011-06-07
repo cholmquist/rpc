@@ -11,11 +11,80 @@
 #include <boost/detail/lightweight_test.hpp>
 
 namespace rpc = boost::rpc;
-namespace protocol = boost::rpc::protocol;
 using boost::system::error_code;
 
-char CHAR_INPUT = 6;
-char CHAR_OUTPUT = 20;
+char CHAR_INPUT = 'A';
+char CHAR_OUTPUT = 'Z';
+int CONTEXT_ID = 101;
+
+typedef std::vector<char> buffer_type;
+
+struct input
+{
+	input(int i) : id(i) {}
+
+	void clear() { buffer.clear(); }
+
+	template<class T>
+	void push_arg(T const& t)
+	{
+		rpc::protocol::bitwise_writer<buffer_type> w(buffer);
+		w(t, rpc::tags::parameter());
+	}
+
+	std::vector<char> buffer;
+	int id;
+};
+
+struct output
+{
+	buffer_type buffer;
+
+	template<class T>
+	T pop_arg()
+	{
+		T t = T();
+		rpc::protocol::bitwise_reader<buffer_type> r(buffer);
+		r(t, rpc::tags::parameter());
+		return t;
+	}
+
+	void clear() { buffer.clear(); }
+};
+
+struct protocol
+{
+	typedef input input_type;
+	typedef output output_type;
+
+	struct reader : rpc::protocol::bitwise_reader<buffer_type>
+	{
+		using rpc::protocol::bitwise_reader<buffer_type>::operator();
+
+		reader(protocol p, input& i)
+			: rpc::protocol::bitwise_reader<buffer_type>(i.buffer) 
+			, input_(i)
+		{}
+
+		int operator()(rpc::tags::placeholder)
+		{
+			return input_.id;
+		}
+		input& input_;
+	};
+
+	struct writer : rpc::protocol::bitwise_writer<buffer_type>
+	{
+		using rpc::protocol::bitwise_writer<buffer_type>::operator();
+		writer(protocol p, output& o)
+			: rpc::protocol::bitwise_writer<buffer_type>(o.buffer) 
+		{}
+		int operator()(rpc::tags::placeholder)
+		{
+			return 1;
+		}
+	};
+};
 
 void void_char(char in, char& out)
 {
@@ -29,38 +98,38 @@ void void_char_throw(char in, char& out)
 	boost::throw_exception(rpc_test::exception("test"));
 }
 
-template<class Buffer, class T>
-void push_arg(Buffer &b, const T& t)
+int get_context_id(int id)
 {
-	protocol::bitwise::writer w(protocol::bitwise(), b);
-	w(t, rpc::tags::parameter());
+	BOOST_TEST_EQ(id, CONTEXT_ID);
+	return id;
 }
-
-template<class T, class Buffer>
-T pop_arg(Buffer& b)
-{
-	T t = T();
-	protocol::bitwise::reader r(protocol::bitwise(), b);
-	r(t, rpc::tags::parameter());
-	return t;
-}
-
 
 int main()
 {
-	rpc::local<rpc::protocol::bitwise> l;
-	std::vector<char> input, output;
+	rpc::local<protocol> l;
+	input i(CONTEXT_ID);
+	output o;
 	{
-		input.clear(); output.clear();
-		push_arg(input, (char) CHAR_INPUT);
-		l(rpc_test::void_char, &void_char).second(input, output);
-		BOOST_TEST(pop_arg<char>(output) == CHAR_OUTPUT);
+		i.clear();
+		o.clear();
+		i.push_arg((char) CHAR_INPUT);
+		l(rpc_test::void_char, &void_char).second(i, o);
+		BOOST_TEST_EQ(o.pop_arg<char>(), CHAR_OUTPUT);
 	}
 	{
-		input.clear(); output.clear();
-		push_arg(input, (char) CHAR_INPUT);
-		l(rpc_test::void_char, &void_char_throw).second(input, output);
-		BOOST_TEST(pop_arg<rpc_test::exception>(output) == rpc_test::exception("test"));
+		i.clear();
+		o.clear();
+		i.push_arg((char) CHAR_INPUT);
+		l(rpc_test::void_char, &void_char_throw).second(i, o);
+		BOOST_TEST(o.pop_arg<rpc_test::exception>() == rpc_test::exception("test"));
+	}
+
+	{
+		i.clear();
+		o.clear();
+		i.push_arg((char) CHAR_INPUT);
+		l(rpc_test::get_context_id, &get_context_id, rpc::placeholders(rpc_test::_context_id = _1) ).second(i, o);
+/*		BOOST_TEST(o.pop_arg<rpc_test::exception>() == rpc_test::exception("test"));*/
 	}
 	return boost::report_errors();
 }
