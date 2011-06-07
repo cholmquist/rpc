@@ -27,9 +27,25 @@
 
 #include "common/signatures.hpp"
 
+const int N_ROUNDTRIPS = 10;
+
 namespace rpc = boost::rpc;
 namespace asio = boost::asio;
 using boost::system::error_code;
+
+struct bitwise
+{
+	typedef std::vector<char> input_type;
+	typedef std::vector<char> output_type;
+	struct reader : rpc::protocol::bitwise_reader<>
+	{
+		reader(bitwise, std::vector<char> & v) : rpc::protocol::bitwise_reader<>(v) {}
+	};
+	struct writer : rpc::protocol::bitwise_writer<>
+	{
+		writer(bitwise, std::vector<char> & v) : rpc::protocol::bitwise_writer<>(v) {}
+	};
+};
 
 template<class FunctionID, class CallID = char>
 struct commands
@@ -126,7 +142,7 @@ typedef boost::function<void(std::vector<char>& data, const boost::system::error
 template<class Library>
 struct basic_connection
 	: boost::rpc::service::async_asio_stream<
-		basic_connection<Library>, header, asio::ip::tcp::socket, rpc::protocol::bitwise>
+		basic_connection<Library>, header, asio::ip::tcp::socket, bitwise>
 	, boost::enable_shared_from_this<basic_connection<Library > >
 {
 	struct command_visitor : boost::static_visitor<bool>
@@ -195,7 +211,7 @@ struct basic_connection
 		catch(rpc_test::quit_exception&)
 		{
 			output_buffer.clear(); // reuse the buffer
-			rpc::protocol::bitwise::writer write(rpc::protocol::bitwise(), output_buffer);
+			bitwise::writer write(bitwise(), output_buffer);
 			this->async_send(commands_t::result_exception(c.call_id), output_buffer);
 			return false;
 		}
@@ -295,8 +311,8 @@ void on_increment(connection_ptr client, int result, error_code ec)
 	BOOST_TEST(!ec);
 	if(!ec)
 	{
-		rpc::async_remote<rpc::protocol::bitwise> async_remote;
-		if(result < 10)
+		rpc::async_remote<bitwise> async_remote;
+		if(result < N_ROUNDTRIPS)
 		{
 			async_remote(rpc_test::increment, client, boost::bind(&on_increment, client, _1, _2))(1);
 		}
@@ -312,7 +328,7 @@ void run_client(boost::system::error_code ec, connection_ptr client)
 	if(!ec)
 	{
 		client->start();
-		rpc::async_remote<rpc::protocol::bitwise> async_remote;
+		rpc::async_remote<bitwise> async_remote;
 		async_remote(rpc_test::void_char, client, &on_sig1)(5);
 		on_increment(client, 0, error_code());
 	}
@@ -356,7 +372,7 @@ int main()
 	library_t client_lib;
 	library_t server_lib;
 
-	rpc::local<rpc::protocol::bitwise> local;
+	rpc::local<bitwise> local;
 
 	server_lib.add(local(rpc_test::void_char, &test1));
 	server_lib.add(local(rpc_test::increment, &server::increment));
@@ -371,7 +387,7 @@ int main()
 	connector.async_connect(client->next_layer(), "127.0.0.1", "10001", boost::bind(&run_client, _1, client));
 
 	ios.run();
-	BOOST_TEST(server::m_counter == 10);
+	BOOST_TEST(server::m_counter == N_ROUNDTRIPS);
 	
 	return boost::report_errors();
 }
