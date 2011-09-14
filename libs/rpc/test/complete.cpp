@@ -123,7 +123,7 @@ struct library
 
 	bool call(const FunctionID& f, buffer_type& in, buffer_type& out)
 	{
-		function_map::iterator itr = m_functions.find(f);
+		typename function_map::iterator itr = m_functions.find(f);
 		if(itr != m_functions.end())
 		{
 			itr->second(in, out);
@@ -145,6 +145,8 @@ struct basic_connection
 		basic_connection<Library>, header, asio::ip::tcp::socket, bitwise>
 	, boost::enable_shared_from_this<basic_connection<Library > >
 {
+	typedef typename basic_connection<Library>::async_stream_base async_stream_base;
+	typedef std::vector<char> buffer_type;
 	struct command_visitor : boost::static_visitor<bool>
 	{
 		command_visitor(basic_connection& c, buffer_type& buffer)
@@ -202,7 +204,7 @@ struct basic_connection
 		{
 			if(m_library.call(c.function_id, input_buffer, output_buffer))
 			{
-				async_send(commands_t::result(c.call_id), output_buffer);
+				this->async_send(commands_t::result(c.call_id), output_buffer);
 			}
 			else
 			{
@@ -271,7 +273,7 @@ struct basic_connection
 		}
 		call.function_id = id;
 		send_handler x(*this, call.call_id);
-		async_send(call, data);
+		this->async_send(call, data);
 	}
 
 	typedef std::map<commands_t::call_id_type, result_handler> result_handler_map;

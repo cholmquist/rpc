@@ -11,6 +11,7 @@
 #include <boost/rpc/core/signature.hpp>
 #include <boost/rpc/core/throws.hpp>
 #include <boost/rpc/core/placeholder.hpp>
+#include <exception>
 #include <cstring>
 
 namespace rpc_test
@@ -18,7 +19,7 @@ namespace rpc_test
 	struct exception : public std::exception
 	{
 		exception(){}
-		exception(const char* w) : std::exception(w) {}
+		exception(const char* w) /*: std::exception(w)*/ {}
 
 		bool operator==(const exception& e) const
 		{
@@ -37,7 +38,7 @@ namespace rpc_test
 			: boost::rpc::signature<std::string, Signature, Exception>(id) {}
 	};
 
-	const boost::rpc::placeholder<int> _context_id;
+	const boost::rpc::placeholder<int> _context_id = {};
 	
 
 	static const signature<void(char, char&), boost::rpc::throws<exception> > void_char("test");
