@@ -1,3 +1,7 @@
+#ifndef BOOST_SYSTEM_NO_DEPRECATED
+#define BOOST_SYSTEM_NO_DEPRECATED 1
+#endif
+
 #include <boost/array.hpp>
 #include <boost/rpc/core/signature.hpp>
 #include <boost/rpc/core/local.hpp>
