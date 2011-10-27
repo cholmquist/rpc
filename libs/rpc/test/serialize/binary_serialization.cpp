@@ -8,11 +8,14 @@
 #pragma warning(disable:4996)
 #pragma warning(disable:4244)
 #include "serialize_test.hpp"
-#include <boost/rpc/protocol/binary_serialization.hpp>
+//#include <boost/rpc/protocol/binary_serialization.hpp>
+#include <iostream>
+#include <concurrent_vector.h>
 
 int main()
 {
-	rpc_test::serialize<boost::rpc::protocol::binary_serialization> test;
-	test.run();
+//	std::thread t;
+//	rpc_test::serialize<boost::rpc::protocol::binary_serialization> test;
+//	test.run();
 	return boost::report_errors();
 }
