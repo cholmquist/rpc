@@ -11,6 +11,8 @@
 #define _WIN32_WINNT 0x0501 // To avoid warnings when including asio
 #endif
 
+#define BOOST_DATE_TIME_NO_LIB
+
 #include <boost/rpc/protocol/bitwise.hpp>
 #include <boost/rpc/core/async_remote.hpp>
 #include <boost/rpc/core/local.hpp>
@@ -372,7 +374,7 @@ int main()
 	library_t client_lib;
 	library_t server_lib;
 
-	rpc::local<bitwise> local;
+	rpc::local<bitwise> local; 
 
 	server_lib.add(local(rpc_test::void_char, &test1));
 	server_lib.add(local(rpc_test::increment, &server::increment));
