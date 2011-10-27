@@ -19,6 +19,21 @@
 namespace rpc = boost::rpc;
 using boost::system::error_code;
 
+struct bitwise
+{
+	typedef std::vector<char> input_type;
+	typedef std::vector<char> output_type;
+	struct reader : rpc::protocol::bitwise_reader<>
+	{
+		reader(bitwise, std::vector<char> & v) : rpc::protocol::bitwise_reader<>(v) {}
+	};
+	struct writer : rpc::protocol::bitwise_writer<>
+	{
+		writer(bitwise, std::vector<char> & v) : rpc::protocol::bitwise_writer<>(v) {}
+	};
+};
+
+
 const char CHAR_RESULT = 5;
 
 enum error_mode
@@ -40,7 +55,7 @@ void rpc_async_call(error_mode mode, const signature_id, std::vector<char>& data
 	std::vector<char> v;
 	if(mode == no_error) // generate one char as respone
 	{
-		rpc::protocol::bitwise::writer w(rpc::protocol::bitwise(), v);
+		bitwise::writer w(bitwise(), v);
 		w((char)CHAR_RESULT, rpc::tags::parameter());
 		c(v, error_code());
 	}
@@ -50,7 +65,7 @@ void rpc_async_call(error_mode mode, const signature_id, std::vector<char>& data
 	}
 	else if(mode == remote_exception_error) // generate an exception
 	{
-		rpc::protocol::bitwise::writer w(rpc::protocol::bitwise(), v);
+		bitwise::writer w(bitwise(), v);
 		w(rpc_test::exception("test"), rpc::tags::parameter());
 		c(v, rpc::remote_exception);
 	}
@@ -60,7 +75,7 @@ void rpc_async_call(error_mode mode, const signature_id, std::vector<char>& data
 	}
 	else if(mode == increment_no_error)
 	{
-		rpc::protocol::bitwise::writer w(rpc::protocol::bitwise(), v);
+		bitwise::writer w(bitwise(), v);
 		w((int)1, rpc::tags::parameter());
 		c(v, error_code());
 	}
@@ -100,7 +115,7 @@ void response_increment(int i, error_code ec)
 
 int main()
 {
-	rpc::async_remote<rpc::protocol::bitwise> async_remote;
+	rpc::async_remote<bitwise> async_remote;
 
 	async_remote(rpc_test::void_char, no_error, &response_no_error)(1);
 	async_remote(rpc_test::void_char, serialization_error, &response_serialization_error)(1);
