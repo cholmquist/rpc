@@ -153,7 +153,8 @@ namespace detail
 	template<class Exception>
 	void assign_exception_what_impl(Exception& e, const std::string& what, boost::false_type)
 	{
-		e = Exception(what.c_str());
+		// TODO: Fix assignment of exceptions
+		//e = Exception(what.c_str());
 	}
 
 	template<class Exception>
@@ -166,7 +167,7 @@ namespace detail
 
 struct bitwise_reader_error : std::exception
 {
-	virtual const char* what() const
+	virtual const char* what() const throw()
 	{
 		return "bitwise reader error";
 	}
@@ -201,7 +202,7 @@ public:
 		template<class T, class Tag>
 		void operator()(T& t, Tag tag)
 		{
-			this->read(t, tag, rpc::traits::container_tag_of<T>::type());
+			this->read(t, tag, typename rpc::traits::container_tag_of<T>::type());
 		}
 
 		template<class T, class Tag>
@@ -245,7 +246,7 @@ public:
 			for(boost::uint32_t i = 0; i < size; ++i)
 			{
 				typename Container::value_type val;
-				this->read(val, tag, rpc::traits::container_tag_of<typename Container::value_type>::type());
+				this->read(val, tag, typename rpc::traits::container_tag_of<typename Container::value_type>::type());
 				c.insert(c.end(), val);
 			}
 		}

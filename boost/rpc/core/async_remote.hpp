@@ -161,7 +161,7 @@ namespace detail
 
 				if(!err)
 				{
-					reader r(p, input);
+					reader r(this->p, input);
 					try
 					{
 						fusion::for_each(args,
@@ -170,17 +170,17 @@ namespace detail
 					catch(std::exception&)
 					{
 						fusion::back(args).assign(serialization_error);
-						fusion::invoke_procedure(h,
+						fusion::invoke_procedure(this->h,
 							fusion::transform(args, functional::arg_type<reader>(r)));
 						return;
 					}
-					fusion::invoke_procedure(h,
+					fusion::invoke_procedure(this->h,
 						fusion::transform(args, functional::arg_type<reader>(r)));
 				}
 				else if(err == remote_exception) // NOTE: Output arguments are not decoded here, instead leave them default initialized.
 				{
 //					Signature::exception_handler::exception_type e;
-					reader r(p, input);
+					reader r(this->p, input);
 					try
 					{
 						std::exception e;
@@ -189,7 +189,7 @@ namespace detail
 					}
 					catch(std::exception&)
 					{
-						fusion::invoke_procedure(h,
+						fusion::invoke_procedure(this->h,
 							fusion::transform(args, functional::arg_type<reader>(r)));
 					}
 				}
@@ -238,10 +238,11 @@ namespace detail
 		{
 			typedef typename Protocol::writer writer;
 
-			Protocol::input_type input;
+			typename Protocol::input_type input;
+			writer w(this->p, input);
 			fusion::for_each(args,
-				functional::write_arg<writer>(writer(p, input)));
-			rpc_async_call(r, id, input, receive_handler(p, h));
+				functional::write_arg<writer>(w));
+			rpc_async_call(this->r, id, input, receive_handler(this->p, this->h));
 		}
 
 		Protocol p;

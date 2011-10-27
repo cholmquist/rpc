@@ -34,7 +34,7 @@ namespace boost{ namespace rpc{
 			packet(const Header& header, buffer_type& payload, const Handler& handler, Serialize& serialize)
 				: m_handler(handler)
 			{
-				Serialize::writer(serialize, m_header)(header, rpc::tags::default_());
+				typename Serialize::writer(serialize, m_header)(header, rpc::tags::default_());
 				m_payload.swap(payload);
 				m_control_buffer = control_data::encode(m_control, m_header.size(), m_payload.size());
 			}
@@ -131,7 +131,7 @@ public:
 		priv_recv();
 	}
 
-	uint32_t max_payload_size() const
+/*	uint32_t max_payload_size() const
 	{
 		return m_max_payload_size;
 	}
@@ -140,7 +140,7 @@ public:
 	{
 		std::swap(m_max_payload_size, n);
 		return n;
-	}
+	}*/
 
 private:
 
@@ -204,7 +204,7 @@ private:
 	bool priv_dispatch()
 	{
 		Header header;
-		Serialize::reader(m_serialize, m_header_buffer)(header, rpc::tags::default_());
+		typename Serialize::reader(m_serialize, m_header_buffer)(header, rpc::tags::default_());
 		return static_cast<Derived*>(this)->receive(header, m_payload_buffer);
 
 	}

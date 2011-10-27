@@ -197,7 +197,7 @@ namespace boost{ namespace rpc {
 		{
 			typedef void result_type;
 			Protocol& p_;
-			read_arg(Protocol& p) : p_(p) {}
+			explicit read_arg(Protocol& p) : p_(p) {}
 
 			template<typename Arg>
 			void operator()(Arg& arg) const
