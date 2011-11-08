@@ -70,11 +70,11 @@ struct serialize
 		
 		{
 			Serialize::writer w(p, data);
-			p(x, boost::rpc::tags::parameter(), w);
+			w(x, boost::rpc::tags::parameter());
 		}
 		{
 			Serialize::reader r(p, data);
-			p(y, boost::rpc::tags::parameter(), r);
+			r(y, boost::rpc::tags::parameter());
 		}
 		BOOST_TEST(x == y);
 	}

@@ -9,12 +9,28 @@
 #include "serialize_test.hpp"
 #include <boost/rpc/protocol/bitwise.hpp>
 
+namespace rpc = boost::rpc;
+
+struct bitwise
+{
+	typedef std::vector<char> input_type;
+	typedef std::vector<char> output_type;
+	struct reader : rpc::protocol::bitwise_reader<>
+	{
+		reader(bitwise, std::vector<char> & v) : rpc::protocol::bitwise_reader<>(v) {}
+	};
+	struct writer : rpc::protocol::bitwise_writer<>
+	{
+		writer(bitwise, std::vector<char> & v) : rpc::protocol::bitwise_writer<>(v) {}
+	};
+};
+
 int main()
 {
 	BOOST_STATIC_ASSERT((boost::rpc::traits::is_array<boost::array<char, 4> >::value ));
 	BOOST_STATIC_ASSERT((boost::rpc::traits::is_array<std::vector<char> >::value == 0 ));
 
-	rpc_test::serialize<boost::rpc::protocol::bitwise> test;
+	rpc_test::serialize<bitwise> test;
 	test.run();
 	// Boost.Serialization doesn't support fusion sequences at this moment, tests moved directly to bitwise
 	test.roundtrip(boost::fusion::make_vector((char)1, (short)2, (double) 3));
