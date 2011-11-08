@@ -170,6 +170,9 @@ namespace detail
 					catch(std::exception&)
 					{
 						fusion::back(args).assign(serialization_error);
+						fusion::invoke_procedure(this->h,
+							fusion::transform(args, functional::arg_type<reader>(r)));
+						return;
 					}
 					fusion::invoke_procedure(this->h,
 						fusion::transform(args, functional::arg_type<reader>(r)));
