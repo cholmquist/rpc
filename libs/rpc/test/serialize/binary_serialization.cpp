@@ -10,7 +10,6 @@
 #include "serialize_test.hpp"
 //#include <boost/rpc/protocol/binary_serialization.hpp>
 #include <iostream>
-#include <concurrent_vector.h>
 
 int main()
 {

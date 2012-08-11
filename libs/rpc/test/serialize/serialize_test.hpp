@@ -15,7 +15,9 @@
 #include <boost/fusion/sequence/comparison/equal_to.hpp>
 #include <boost/variant/variant.hpp>
 #include <boost/array.hpp>
+#include <boost/rpc/core/tags.hpp>
 #include <string>
+#include <vector>
 
 namespace rpc_test
 {
@@ -69,11 +71,11 @@ struct serialize
 		Serialize p;
 		
 		{
-			Serialize::writer w(p, data);
+			typename Serialize::writer w(p, data);
 			w(x, boost::rpc::tags::parameter());
 		}
 		{
-			Serialize::reader r(p, data);
+			typename Serialize::reader r(p, data);
 			r(y, boost::rpc::tags::parameter());
 		}
 		BOOST_TEST(x == y);
