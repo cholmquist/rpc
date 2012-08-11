@@ -1,4 +1,7 @@
 *~
-build/
+*.kate-swp
+
 rpc.kdev4
+
+build/
 
