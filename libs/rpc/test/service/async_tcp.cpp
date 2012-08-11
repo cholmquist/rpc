@@ -158,7 +158,8 @@ void on_send_header_a(std::vector<char>&, const boost::system::error_code& ec)
 	if(!ec)
 	{
 		test_results[test_send_header_a] = true;
-		g_client->async_send(header_b(value_header_b), std::vector<char>(data_header_b.begin(), data_header_b.end()), &on_send_header_b);
+		std::vector<char> payload(data_header_b.begin(), data_header_b.end());
+		g_client->async_send(header_b(value_header_b), payload, &on_send_header_b);
 	}
 }
 
@@ -167,7 +168,8 @@ void on_connect(boost::system::error_code ec)
 	if(!ec)
 	{
 		test_results[test_client_connect] = true;
-		g_client->async_send(header_a(value_header_a), std::vector<char>(), &on_send_header_a);
+		std::vector<char> payload;
+		g_client->async_send(header_a(value_header_a), payload, &on_send_header_a);
 	}
 }
 

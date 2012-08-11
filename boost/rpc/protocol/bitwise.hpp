@@ -259,7 +259,7 @@ public:
 			for(boost::uint32_t i = 0; i < size; ++i)
 			{
 				typename Container::value_type val; // TODO: Remove recreation of val, by implementing detail::clear(T&, container_tag);
-				this->read(val, tag, rpc::traits::container_tag_of<typename Container::value_type>::type());
+				this->read(val, tag, typename rpc::traits::container_tag_of<typename Container::value_type>::type());
 				c[i] = val;
 			}
 		}

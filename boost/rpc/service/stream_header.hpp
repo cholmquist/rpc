@@ -8,6 +8,7 @@
 #include <boost/cstdint.hpp>
 #include <boost/static_assert.hpp>
 #include <boost/array.hpp>
+#include <boost/type_traits/is_same.hpp>
 #include <boost/logic/tribool.hpp>
 #include <boost/asio/buffer.hpp>
 #include <algorithm>
