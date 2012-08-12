@@ -69,14 +69,6 @@ namespace boost{ namespace rpc{
 
 namespace service {
 
-enum receive_state
-{
-	rs_init,
-	rs_control_data,
-	rs_header_buffer,
-	rs_payload_buffer,
-};
-
 // AsyncStream : Asio.AsyncReadStream, Asio.AsyncWriteStream
 
 template<class Derived, class Header, class AsyncStream, class Serialize>
@@ -93,12 +85,10 @@ public:
 	typedef rpc::detail::packet<async_handler> packet;
 	typedef typename packet::list_type packet_list;
 
-	receive_state m_state;
-
-	async_asio_stream(asio::io_service& ios, serialize_type serialize = serialize_type())
+	async_asio_stream(asio::io_service& ios, std::size_t receive_buffer_size = 64, serialize_type serialize = serialize_type())
 		: m_socket(ios)
 		, m_serialize(serialize)
-		, m_state(rs_init)
+		, m_recv_buffer(receive_buffer_size)
 //		, m_max_payload_size(65536)
 	//	, m_decoder(m_recv_header)
 	{
@@ -127,20 +117,8 @@ public:
 
 	void start()
 	{
-		m_state = rs_control_data;
 		priv_recv();
 	}
-
-/*	uint32_t max_payload_size() const
-	{
-		return m_max_payload_size;
-	}
-
-	uint32_t max_payload_size(uint32_t n)
-	{
-		std::swap(m_max_payload_size, n);
-		return n;
-	}*/
 
 private:
 
@@ -158,35 +136,37 @@ private:
 			static_cast<Derived*>(this)->receive_error(ec);
 			return;
 		}
-		bool receive_again = false;
 		m_recv_buffer.commit(size);
 		while(!m_recv_buffer.empty())
 		{
-			if(m_state == rs_control_data)
+			if(m_control_decoder.is_done())
+			{
+			    if(m_header_buffer.size() != m_control_decoder.header_size())
+			    {
+				m_recv_buffer.flush(std::back_inserter(m_header_buffer), m_control_decoder.header_size() - m_header_buffer.size());
+			    }
+			    else if(m_payload_buffer.size() != m_control_decoder.payload_size())
+			    {
+				m_recv_buffer.flush(std::back_inserter(m_payload_buffer), m_control_decoder.payload_size() - m_payload_buffer.size());
+			    }
+			    if(m_header_buffer.size() == m_control_decoder.header_size() &&
+			      m_payload_buffer.size() == m_control_decoder.payload_size())
+			    {
+				bool success = this->priv_dispatch();
+				m_control_decoder.reset();
+				if(!success) // dispatcher signalled to stop further invocation
+				{
+				  return;
+				}
+			    }
+			}
+			else
 			{
 				boost::tribool result = m_control_decoder.process(m_recv_buffer.pop());
 				if(result == true)
 				{
-					m_control_decoder.init_buffers(m_header_buffer, m_payload_buffer);
-					std::size_t remaining = m_recv_buffer.flush(std::back_inserter(m_header_buffer), m_control_decoder.header_size());
-					if(remaining != 0)
-					{
-						m_recv_buffer.flush(std::back_inserter(m_payload_buffer), m_control_decoder.payload_size());
-						if(m_payload_buffer.size() == m_control_decoder.payload_size())
-						{
-							receive_again = this->priv_dispatch();
-							m_control_decoder.reset();
-						}
-						else
-						{
-							m_state = rs_payload_buffer;
-						}
-
-					}
-					else
-					{
-						m_state = rs_header_buffer;
-					}
+				      m_header_buffer.clear();
+				      m_payload_buffer.clear();
 				}
 				else if(result == false)
 				{
@@ -195,10 +175,7 @@ private:
 				}
 			}
 		}
-		if(receive_again)
-		{
-			this->priv_recv();
-		}
+		this->priv_recv();
 	}
 
 	bool priv_dispatch()
@@ -242,7 +219,7 @@ private:
 	buffer_type m_payload_buffer;
 	header_type m_recv_header;
 	rpc::detail::control_data::decoder m_control_decoder;
-	rpc::detail::receive_buffer<64> m_recv_buffer;
+	rpc::detail::receive_buffer m_recv_buffer;
 };
 
 template<class StreamProtocol>

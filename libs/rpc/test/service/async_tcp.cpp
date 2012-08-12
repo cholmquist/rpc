@@ -89,7 +89,7 @@ struct client
 	: boost::rpc::service::async_asio_stream<client, header_variant, boost::asio::ip::tcp::socket, Serialize>
 	, boost::enable_shared_from_this<client>
 {
-	client(asio::io_service& ios) : async_stream_base(ios) {}
+	client(asio::io_service& ios, std::size_t recvsize) : async_stream_base(ios, recvsize) {}
 
 	bool receive(const header_variant&, std::vector<char>&)
 	{
@@ -104,7 +104,7 @@ struct server
 	: boost::rpc::service::async_asio_stream<server, header_variant, boost::asio::ip::tcp::socket, Serialize>
 	, boost::enable_shared_from_this<server>
 {
-	server(asio::io_service& ios) : async_stream_base(ios) {}
+	server(asio::io_service& ios, std::size_t recvsize) : async_stream_base(ios, recvsize) {}
 
 	bool receive(header_variant header, std::vector<char>& data)
 	{
@@ -175,21 +175,28 @@ void on_connect(boost::system::error_code ec)
 
 int main()
 {
-	boost::asio::io_service ios;
-	g_client.reset(new client(ios));
-	g_server.reset(new server(ios));
-	rpc::service::stream_connector<asio::ip::tcp> connector(ios);
-	rpc::service::stream_acceptor<asio::ip::tcp> acceptor(ios, "127.0.0.1", "10001");
-	acceptor.async_accept(g_server->next_layer(), &on_accept);
-	connector.async_connect(g_client->next_layer(), "127.0.0.1", "10001", &on_connect);
-	ios.run();
-	BOOST_TEST(test_results[test_client_connect]);
-	BOOST_TEST(test_results[test_server_accept]);
-	BOOST_TEST(test_results[test_send_header_a]);
-	BOOST_TEST(test_results[test_recv_header_a]);
-	BOOST_TEST(test_results[test_send_header_b_with_data]);
-	BOOST_TEST(test_results[test_recv_header_b_with_data]);
-	g_client.reset();
-	g_server.reset();
+	for(int i = 0; i < 1; ++i)
+	{
+	  for(int j = 0; j < num_tests; j++)
+	  {
+	    test_results[j] = false;
+	  }
+	  boost::asio::io_service ios;
+	  g_client.reset(new client(ios, 64));
+	  g_server.reset(new server(ios, 64));
+	  rpc::service::stream_connector<asio::ip::tcp> connector(ios);
+	  rpc::service::stream_acceptor<asio::ip::tcp> acceptor(ios, "127.0.0.1", "10002");
+	  acceptor.async_accept(g_server->next_layer(), &on_accept);
+	  connector.async_connect(g_client->next_layer(), "127.0.0.1", "10002", &on_connect);
+	  ios.run();
+	  BOOST_TEST(test_results[test_client_connect]);
+	  BOOST_TEST(test_results[test_server_accept]);
+	  BOOST_TEST(test_results[test_send_header_a]);
+	  BOOST_TEST(test_results[test_recv_header_a]);
+	  BOOST_TEST(test_results[test_send_header_b_with_data]);
+	  BOOST_TEST(test_results[test_recv_header_b_with_data]);
+	  g_client.reset();
+	  g_server.reset();
+	}
 	return boost::report_errors();
 }

@@ -162,6 +162,11 @@ namespace boost{ namespace rpc{	namespace detail{
 				payload.clear();
 				payload.reserve(this->payload_size());
 			}
+			
+			bool is_done() const
+			{
+			  return m_state == ds_done;
+			}
 
 		private:
 			decoder_state m_state;
@@ -172,14 +177,19 @@ namespace boost{ namespace rpc{	namespace detail{
 		};
 	};
 
-	template<std::size_t Size>
 	class receive_buffer
 	{
 	public:
-		receive_buffer()
-			: m_begin(m_buffer)
+		explicit receive_buffer(std::size_t size)
+			: m_buffer(new uint8_t[size])
+			, m_begin(m_buffer)
 			, m_end(m_buffer)
+			, m_size(size)
 		{
+		}
+		~receive_buffer()
+		{
+		  delete [] m_buffer;
 		}
 
 		uint8_t pop()
@@ -202,7 +212,7 @@ namespace boost{ namespace rpc{	namespace detail{
 		void commit(std::size_t n)
 		{
 			m_end += n;
-			BOOST_ASSERT(m_end <= &m_buffer[Size]);
+			BOOST_ASSERT(m_end <= m_buffer + m_size);
 		}
 
 		template<class Iterator>
@@ -216,7 +226,7 @@ namespace boost{ namespace rpc{	namespace detail{
 
 		asio::mutable_buffer prepare() const
 		{
-			return asio::mutable_buffer(m_end, static_cast<std::size_t>(&m_buffer[Size] - m_end));
+			return asio::mutable_buffer(m_end, static_cast<std::size_t>(&m_buffer[m_size] - m_end));
 		}
 
 		asio::const_buffer reset()
@@ -239,9 +249,14 @@ namespace boost{ namespace rpc{	namespace detail{
 		}
 
 	private:
-		uint8_t m_buffer[Size];
+		uint8_t* m_buffer;
 		uint8_t* m_begin;
 		uint8_t* m_end;
+		std::size_t m_size;
+
+		receive_buffer(const receive_buffer&);
+		receive_buffer& operator=(const receive_buffer&);
+	  
 	};
 
 }}}
