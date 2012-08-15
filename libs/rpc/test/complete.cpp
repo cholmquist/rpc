@@ -13,10 +13,10 @@
 
 #define BOOST_DATE_TIME_NO_LIB
 
+#include "common/async_connection.hpp"
 #include <boost/rpc/protocol/bitwise.hpp>
 #include <boost/rpc/core/async_remote.hpp>
 #include <boost/rpc/core/local.hpp>
-#include <boost/rpc/service/async_tcp.hpp>
 #include <boost/variant/get.hpp>
 
 #include <boost/detail/lightweight_test.hpp>
@@ -143,11 +143,8 @@ typedef boost::function<void(std::vector<char>& data, const boost::system::error
 
 template<class Library>
 struct basic_connection
-	: boost::rpc::service::async_asio_stream<
-		basic_connection<Library>, header, asio::ip::tcp::socket, bitwise>
-	, boost::enable_shared_from_this<basic_connection<Library > >
+	: rpc_test::connection<header, bitwise>
 {
-	typedef typename basic_connection<Library>::async_stream_base async_stream_base;
 	typedef std::vector<char> buffer_type;
 	struct command_visitor : boost::static_visitor<bool>
 	{
@@ -165,7 +162,7 @@ struct basic_connection
 	};
 
 	basic_connection(asio::io_service& ios, Library& library, const char* debug_name)
-		: async_stream_base(ios)
+		: rpc_test::connection<header, bitwise>(ios)
 		, m_library(library)
 		, m_debug_name(debug_name)
 	{}
@@ -385,10 +382,10 @@ int main()
 	connection_ptr client(new connection(ios, client_lib, "client"));
 	connection_ptr server(new connection(ios, server_lib, "server"));
 
-	rpc::service::stream_connector<asio::ip::tcp> connector(ios);
-	rpc::service::stream_acceptor<asio::ip::tcp> acceptor(ios, "127.0.0.1", "10001");
-	acceptor.async_accept(server->next_layer(), boost::bind(&run_server, _1, server));
-	connector.async_connect(client->next_layer(), "127.0.0.1", "10001", boost::bind(&run_client, _1, client));
+	rpc_test::stream_connector<asio::ip::tcp> connector(ios);
+	rpc_test::stream_acceptor<asio::ip::tcp> acceptor(ios, "127.0.0.1", "10001");
+	acceptor.async_accept(server->socket(), boost::bind(&run_server, _1, server));
+	connector.async_connect(client->socket(), "127.0.0.1", "10001", boost::bind(&run_client, _1, client));
 
 	ios.run();
 	BOOST_TEST(server::m_counter == N_ROUNDTRIPS);

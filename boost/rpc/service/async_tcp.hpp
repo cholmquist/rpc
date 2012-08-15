@@ -5,18 +5,11 @@
 #include <boost/rpc/core/tags.hpp> // TODO: remove
 #include <boost/array.hpp>
 #include <boost/assert.hpp>
-#include <boost/smart_ptr/shared_ptr.hpp>
-#include <boost/smart_ptr/enable_shared_from_this.hpp>
 #include <boost/function/function2.hpp>
 #include <boost/system/error_code.hpp>
-#include <boost/asio/io_service.hpp>
 #include <boost/asio/buffer.hpp>
-#include <boost/asio/write.hpp>
-#include <boost/asio/read.hpp>
 #include <boost/checked_delete.hpp>
 #include <boost/intrusive/slist.hpp>
-
-#include <boost/bind.hpp> // TODO: Remove dep. on bind
 
 namespace boost{ namespace rpc{
 	
@@ -69,39 +62,27 @@ namespace boost{ namespace rpc{
 
 namespace service {
 
-// AsyncStream : Asio.AsyncReadStream, Asio.AsyncWriteStream
-
-template<class Derived, class Header, class AsyncStream, class Serialize>
-class async_asio_stream
+template<class Derived, class Header, class Serialize>
+class async_stream_connection
 {
 public:
 
-	typedef async_asio_stream<Derived, Header, AsyncStream, Serialize> async_stream_base;
 	typedef std::vector<char> buffer_type;
 	typedef boost::function<void(buffer_type&, system::error_code)> async_handler;
 	typedef Header header_type;
-	typedef AsyncStream next_layer_type;
 	typedef Serialize serialize_type;
 	typedef rpc::detail::packet<async_handler> packet;
 	typedef typename packet::list_type packet_list;
 
-	async_asio_stream(asio::io_service& ios, std::size_t receive_buffer_size = 64, serialize_type serialize = serialize_type())
-		: m_socket(ios)
-		, m_serialize(serialize)
+	async_stream_connection(std::size_t receive_buffer_size = 64, serialize_type serialize = serialize_type())
+		: m_serialize(serialize)
 		, m_recv_buffer(receive_buffer_size)
-//		, m_max_payload_size(65536)
-	//	, m_decoder(m_recv_header)
 	{
 	}
 
-	~async_asio_stream()
+	~async_stream_connection()
 	{
 		m_send_queue.clear_and_dispose(boost::checked_deleter<packet>());
-	}
-
-	next_layer_type& next_layer()
-	{
-		return m_socket;
 	}
 
 	void async_send(const header_type& header, buffer_type& payload, const async_handler& handler = async_handler() )
@@ -120,16 +101,24 @@ public:
 		priv_recv();
 	}
 
-private:
+protected:
 
-	void priv_recv()
+	void async_send_completed(const system::error_code& err,std::size_t size)
 	{
-		m_recv_buffer.reset2();
-		m_socket.async_read_some(asio::mutable_buffers_1(m_recv_buffer.prepare()),
-			boost::bind(&async_asio_stream::priv_handle_recv, static_cast<Derived*>(this)->shared_from_this(), _1, _2));
+		std::auto_ptr<packet> p(&m_send_queue.front());
+		m_send_queue.pop_front();
+		bool do_send = !m_send_queue.empty(); // Check queue before invoking handler, as it may call async_send
+		if(p->m_handler) // The handler is optional
+		{
+			p->m_handler(p->m_payload, err);
+		}
+		if(do_send)
+		{
+			priv_send_one();
+		}
 	}
-
-	void priv_handle_recv(const system::error_code& ec, std::size_t size)
+  
+	void async_receive_completed(const system::error_code& ec, std::size_t size)
 	{
 		if(ec)
 		{
@@ -178,6 +167,16 @@ private:
 		this->priv_recv();
 	}
 
+  
+private:
+
+	void priv_recv()
+	{
+		m_recv_buffer.reset2();
+		static_cast<Derived*>(this)->do_async_receive(asio::mutable_buffers_1(m_recv_buffer.prepare()));
+	}
+
+
 	bool priv_dispatch()
 	{
 		Header header;
@@ -189,29 +188,10 @@ private:
 	void priv_send_one()
 	{
 		const packet& p = m_send_queue.front();
-		asio::async_write(m_socket,
-			p.to_buffers(), 
-			boost::bind(&async_asio_stream::priv_handle_send, static_cast<Derived*>(this)->shared_from_this(), // TODO: Remove dep. on bind
-			_1));
+		static_cast<Derived*>(this)->do_async_send(p.to_buffers());
 
 	}
 
-	void priv_handle_send(const system::error_code& err)
-	{
-		std::auto_ptr<packet> p(&m_send_queue.front());
-		m_send_queue.pop_front();
-		bool do_send = !m_send_queue.empty(); // Check queue before invoking handler, as it may call async_send
-		if(p->m_handler) // The handler is optional
-		{
-			p->m_handler(p->m_payload, err);
-		}
-		if(do_send)
-		{
-			priv_send_one();
-		}
-	}
-
-	AsyncStream	m_socket;
 	serialize_type m_serialize;
 	packet_list m_send_queue;
 	std::vector<char> m_recv_payload;
@@ -222,130 +202,6 @@ private:
 	rpc::detail::receive_buffer m_recv_buffer;
 };
 
-template<class StreamProtocol>
-class stream_connector
-{
-	template<class Handler>
-	struct async_iterator
-	{
-		typename StreamProtocol::socket& m_socket;
-		typename StreamProtocol::resolver::iterator m_endpoint_itr;
-		Handler m_handler;
-
-		async_iterator(typename StreamProtocol::socket& sock, Handler h)
-			: m_socket(sock)
-			, m_endpoint_itr()
-			, m_handler(h)
-		{
-
-		}
-
-		// Handle connect
-		void operator()(const system::error_code& ec)
-		{
-			if(!ec)
-			{
-				m_handler(ec);
-			}
-			else
-			{
-				m_socket.close();
-				if(++m_endpoint_itr != typename StreamProtocol::resolver::iterator())
-				{
-					m_socket.async_connect(*m_endpoint_itr, *this);
-				}
-				else
-				{
-					m_handler(ec);
-				}
-			}
-		}
-
-		// Handle resolve
-		void operator()(const system::error_code& ec, typename StreamProtocol::resolver::iterator endpoint_itr)
-		{
-			if(!ec)
-			{
-				m_endpoint_itr = endpoint_itr;
-				m_socket.async_connect(*m_endpoint_itr, *this);
-			}
-			else
-			{
-				m_handler(ec);
-			}
-		}
-
-	private:
-		async_iterator& operator=(const async_iterator&);
-	};
-
-public:
-	typename StreamProtocol::resolver::iterator m_endpoint_itr;
-	shared_ptr<typename StreamProtocol::resolver> m_resolver;
-
-	stream_connector(asio::io_service& ios)
-		: m_endpoint_itr()
-		, m_resolver(new typename StreamProtocol::resolver(ios))
-	{
-	}
-
-	template<class Handler>
-	void async_connect(typename StreamProtocol::socket& sock, const std::string& host_name, const std::string& service_name, Handler h)
-	{
-		m_resolver->async_resolve(typename StreamProtocol::resolver::query(host_name, service_name),
-			async_iterator<Handler>(sock, h));
-	}
-
-};
-
-template<class StreamProtocol>
-class stream_acceptor
-{
-	template<class ConnectionPtr>
-	struct accept_handler
-	{
-		accept_handler(ConnectionPtr ptr)	:
-		m_ptr(ptr)
-		{}
-
-		void operator()(const system::error_code& ec)
-		{
-			if(!ec)
-				m_ptr->start();
-			else
-				m_ptr->accept_error(ec);
-		}
-
-	private:
-		ConnectionPtr m_ptr;
-
-	};
-
-public:
-	stream_acceptor(
-		asio::io_service& ios,
-		const std::string& address,
-		const std::string& service_name) :
-		acceptor_(ios)
-	{
-		typename StreamProtocol::resolver resolver(ios);
-		typename StreamProtocol::resolver::query query(address, service_name);
-		typename StreamProtocol::endpoint endpoint = *resolver.resolve(query);
-		acceptor_.open(endpoint.protocol());
-		acceptor_.set_option(typename StreamProtocol::acceptor::reuse_address(true));
-		acceptor_.bind(endpoint);
-		acceptor_.listen();
-	}
-
-	template<class Handler>
-	void async_accept(typename StreamProtocol::socket& sock, Handler h)
-	{
-		acceptor_.async_accept(sock, h);
-	}
-
-private:
-	typename StreamProtocol::acceptor acceptor_;
-};
 
 }
 }

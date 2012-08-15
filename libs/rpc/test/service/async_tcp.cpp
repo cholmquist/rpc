@@ -6,13 +6,14 @@
 #define BOOST_DATE_TIME_NO_LIB
 #endif
 
-#include <boost/rpc/service/async_tcp.hpp>
+#include "../common/async_connection.hpp"
 #include <boost/rpc/protocol/bitwise.hpp>
 #include <boost/variant/variant.hpp>
 #include <boost/variant/get.hpp>
-#include <boost/asio/ip/tcp.hpp>
 #include <boost/smart_ptr/enable_shared_from_this.hpp>
 #include <boost/detail/lightweight_test.hpp>
+#include <boost/bind.hpp>
+
 
 namespace rpc=boost::rpc;
 namespace asio=boost::asio;
@@ -85,28 +86,33 @@ struct is_array<header_b> : boost::true_type {};
 
 typedef boost::variant<header_a, header_b> header_variant;
 
-struct client
-	: boost::rpc::service::async_asio_stream<client, header_variant, boost::asio::ip::tcp::socket, Serialize>
-	, boost::enable_shared_from_this<client>
-{
-	client(asio::io_service& ios, std::size_t recvsize) : async_stream_base(ios, recvsize) {}
 
+struct client : public rpc_test::connection<header_variant, Serialize>
+{
+	client(asio::io_service& ios, std::size_t recvsize) : connection(ios, recvsize) {}
+
+	virtual void receive_error(boost::system::error_code ec)
+	{
+	  BOOST_ERROR(ec.message().c_str());
+	}
+	
 	bool receive(const header_variant&, std::vector<char>&)
 	{
+	  return true;
 	}
-	void receive_error(boost::system::error_code)
-	{
 
-	}
 };
 
-struct server
-	: boost::rpc::service::async_asio_stream<server, header_variant, boost::asio::ip::tcp::socket, Serialize>
-	, boost::enable_shared_from_this<server>
+struct server : rpc_test::connection<header_variant, Serialize>
 {
-	server(asio::io_service& ios, std::size_t recvsize) : async_stream_base(ios, recvsize) {}
+	server(asio::io_service& ios, std::size_t recvsize) : connection(ios, recvsize) {}
 
-	bool receive(header_variant header, std::vector<char>& data)
+	virtual void receive_error(boost::system::error_code ec)
+	{
+	  BOOST_ERROR(ec.message().c_str());
+	}
+
+	bool receive(const header_variant& header, std::vector<char>& data)
 	{
 		if(header.which() == 0) // header_a
 		{
@@ -124,10 +130,6 @@ struct server
 		return true;
 	}
 
-	void receive_error(boost::system::error_code ec)
-	{
-		BOOST_ERROR(ec.message().c_str());
-	}
 };
 
 typedef boost::shared_ptr<client> client_ptr;
@@ -184,10 +186,10 @@ int main()
 	  boost::asio::io_service ios;
 	  g_client.reset(new client(ios, 64));
 	  g_server.reset(new server(ios, 64));
-	  rpc::service::stream_connector<asio::ip::tcp> connector(ios);
-	  rpc::service::stream_acceptor<asio::ip::tcp> acceptor(ios, "127.0.0.1", "10002");
-	  acceptor.async_accept(g_server->next_layer(), &on_accept);
-	  connector.async_connect(g_client->next_layer(), "127.0.0.1", "10002", &on_connect);
+	  rpc_test::stream_connector<asio::ip::tcp> connector(ios);
+	  rpc_test::stream_acceptor<asio::ip::tcp> acceptor(ios, "127.0.0.1", "10002");
+	  acceptor.async_accept(g_server->socket(), &on_accept);
+	  connector.async_connect(g_client->socket(), "127.0.0.1", "10002", &on_connect);
 	  ios.run();
 	  BOOST_TEST(test_results[test_client_connect]);
 	  BOOST_TEST(test_results[test_server_accept]);
