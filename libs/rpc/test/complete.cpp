@@ -107,7 +107,7 @@ struct commands
 	};
 
 };
-
+ 
 typedef commands<std::string> commands_t;
 typedef boost::variant<commands_t::call, commands_t::result, commands_t::result_exception> header;
 

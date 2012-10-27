@@ -1,6 +1,7 @@
 #ifndef BOOST_RPC_TEST_ASYNC_CONNECTION_H
 #define BOOST_RPC_TEST_ASYNC_CONNECTION_H
 
+#include <boost/rpc/service/async_stream_connection.hpp>
 #include <boost/rpc/service/async_tcp.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/write.hpp>
@@ -13,40 +14,20 @@ namespace rpc_test
   template<class Header, class Serialize>
   class connection
     : public boost::rpc::service::async_stream_connection<connection<Header, Serialize>, Header, Serialize>
+    , public boost::rpc::async_tcp<connection<Header, Serialize> >
     , public boost::enable_shared_from_this<connection<Header, Serialize> >
   {
     
   public:
       connection(boost::asio::io_service& ios, std::size_t recvsize = 64)
 	: boost::rpc::service::async_stream_connection<connection, Header, Serialize>(recvsize)
-	, m_socket(ios)
+	, boost::rpc::async_tcp<connection<Header, Serialize> >(ios)
       {}
       
       virtual void receive_error(boost::system::error_code ec) = 0;
 
       virtual bool receive(const Header&, std::vector<char>&) = 0;
-
       
-      template<class Buffer>
-      void do_async_send(const Buffer& buffer)
-      {
-		  boost::asio::async_write(m_socket,
-			  buffer, 
-			  boost::bind(&connection::async_send_completed, this->shared_from_this(), _1, _2));
-	
-      }
-      template<class Buffer>
-      void do_async_receive(const Buffer& buffer)
-      {
-	  m_socket.async_read_some(
-	    buffer,
-	    boost::bind(&connection::async_receive_completed, this->shared_from_this(), _1, _2));
-      }
-      
-      boost::asio::ip::tcp::socket& socket() { return m_socket;}
-
-  private:
-	boost::asio::ip::tcp::socket m_socket;
   };
 
 template<class StreamProtocol>
