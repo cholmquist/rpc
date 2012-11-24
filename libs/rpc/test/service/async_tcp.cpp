@@ -100,6 +100,7 @@ struct client : public rpc_test::connection<header_variant, Serialize>
 	{
 	  return true;
 	}
+      virtual void connected(boost::system::error_code ec);
 
 };
 
@@ -129,6 +130,7 @@ struct server : rpc_test::connection<header_variant, Serialize>
 		}
 		return true;
 	}
+      virtual void connected(boost::system::error_code ec);
 
 };
 
@@ -138,7 +140,7 @@ typedef boost::shared_ptr<server> server_ptr;
 client_ptr g_client;
 server_ptr g_server;
 
-void on_accept(boost::system::error_code ec)
+void server::connected(boost::system::error_code ec)
 {
 	if(!ec)
 	{
@@ -165,7 +167,7 @@ void on_send_header_a(std::vector<char>&, const boost::system::error_code& ec)
 	}
 }
 
-void on_connect(boost::system::error_code ec)
+void client::connected(boost::system::error_code ec)
 {
 	if(!ec)
 	{
@@ -186,10 +188,10 @@ int main()
 	  boost::asio::io_service ios;
 	  g_client.reset(new client(ios, 64));
 	  g_server.reset(new server(ios, 64));
-	  rpc_test::stream_connector<asio::ip::tcp> connector(ios);
-	  rpc_test::stream_acceptor<asio::ip::tcp> acceptor(ios, "127.0.0.1", "10002");
-	  acceptor.async_accept(g_server->socket(), &on_accept);
-	  connector.async_connect(g_client->socket(), "127.0.0.1", "10002", &on_connect);
+	  client::connector connector(ios, "127.0.0.1", "10002");
+	  server::acceptor acceptor(ios, "127.0.0.1", "10002");
+	  acceptor.async_accept(g_server);
+	  connector.async_connect(g_client);
 	  ios.run();
 	  BOOST_TEST(test_results[test_client_connect]);
 	  BOOST_TEST(test_results[test_server_accept]);
