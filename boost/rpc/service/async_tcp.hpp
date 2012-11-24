@@ -6,47 +6,158 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/bind.hpp>
 
-namespace boost{
-namespace rpc{
+namespace boost
+{
+namespace rpc
+{
+namespace detail
+{
 
-  template<class Derived>
-  class async_tcp
-  {
-    
-  public:
-      explicit async_tcp(boost::asio::io_service& ios)
-	: m_socket(ios)
-      {}
-      
-      template<class Buffers>
-      void do_async_send(const Buffers& buffers)
-      {
-		  boost::asio::async_write(m_socket,
-			  buffers, 
-			  boost::bind(&Derived::async_send_completed, static_cast<Derived*>(this)->shared_from_this(), _1, _2));
-	
-      }
+template<class ConnectionPtr>
+struct connect_handler {
+    connect_handler ( ConnectionPtr ptr )	:
+        m_ptr ( ptr )
+    {}
 
-      template<class Buffers>
-      void do_async_receive(const Buffers& buffers)
-      {
-	  m_socket.async_read_some(
-	    buffers,
-	    boost::bind(&Derived::async_receive_completed, static_cast<Derived*>(this)->shared_from_this(), _1, _2));
-      }
-      
-      void async_accept(const std::string& address, const std::string& service_name)
-      {
-      }
+    void operator() ( const boost::system::error_code& ec ) {
+        m_ptr->connected ( ec );
+    }
 
-      
-      boost::asio::ip::tcp::socket& socket() { return m_socket;}
+private:
+    ConnectionPtr m_ptr;
 
-  private:
-	boost::asio::ip::tcp::socket m_socket;
-  };
+};
 
-  
-}}
+class tcp_acceptor
+{
+public:
+    typedef boost::asio::ip::tcp tcp;
+
+    tcp_acceptor (
+        boost::asio::io_service& ios,
+        const std::string& address,
+        const std::string& service_name ) :
+        acceptor_ ( ios ) {
+        typename tcp::resolver resolver ( ios );
+        typename tcp::resolver::query query ( address, service_name );
+        typename tcp::endpoint endpoint = *resolver.resolve ( query );
+        acceptor_.open ( endpoint.protocol() );
+        acceptor_.set_option ( tcp::acceptor::reuse_address ( true ) );
+        acceptor_.bind ( endpoint );
+        acceptor_.listen();
+    }
+
+    template<class ConnectionPtr>
+    void async_accept ( ConnectionPtr connection ) {
+        acceptor_.async_accept ( connection->socket(), connect_handler<ConnectionPtr> ( connection ) );
+    }
+
+private:
+    typename tcp::acceptor acceptor_;
+};
+
+class tcp_connector
+{
+    typedef boost::asio::ip::tcp tcp;
+    template<class Handler>
+    struct async_iterator {
+        tcp::socket& m_socket;
+        tcp::resolver::iterator m_endpoint_itr;
+        Handler m_handler;
+
+        async_iterator ( tcp::socket& sock, Handler h )
+            : m_socket ( sock )
+            , m_endpoint_itr()
+            , m_handler ( h ) {
+
+        }
+
+        // Handle connect
+        void operator() ( const boost::system::error_code& ec ) {
+            if ( !ec ) {
+                m_handler ( ec );
+            } else {
+                m_socket.close();
+                if ( ++m_endpoint_itr != tcp::resolver::iterator() ) {
+                    m_socket.async_connect ( *m_endpoint_itr, *this );
+                } else {
+                    m_handler ( ec );
+                }
+            }
+        }
+
+        // Handle resolve
+        void operator() ( const boost::system::error_code& ec, tcp::resolver::iterator endpoint_itr ) {
+            if ( !ec ) {
+                m_endpoint_itr = endpoint_itr;
+                m_socket.async_connect ( *m_endpoint_itr, *this );
+            } else {
+                m_handler ( ec );
+            }
+        }
+
+    private:
+        async_iterator& operator= ( const async_iterator& );
+    };
+
+public:
+    tcp::endpoint m_endpoint;
+
+    tcp_connector ( boost::asio::io_service& ios, const std::string& host_name, const std::string& service_name )
+        : m_endpoint() {
+        tcp::resolver resolver ( ios );
+        tcp::resolver::query query ( host_name, service_name );
+        m_endpoint = *resolver.resolve ( query );
+    }
+
+    template<class ConnectionPtr>
+    void async_connect ( ConnectionPtr connection ) {
+        connection->socket().async_connect ( m_endpoint, connect_handler<ConnectionPtr> ( connection ) );
+    }
+
+};
+
+
+} //detail
+
+template<class Derived>
+class async_tcp
+{
+
+public:
+
+    typedef detail::tcp_acceptor acceptor;
+    typedef detail::tcp_connector connector;
+
+    explicit async_tcp ( boost::asio::io_service& ios )
+        : m_socket ( ios )
+    {}
+
+    template<class Buffers>
+    void do_async_send ( const Buffers& buffers ) {
+        boost::asio::async_write ( m_socket,
+                                   buffers,
+                                   boost::bind ( &Derived::async_send_completed, static_cast<Derived*> ( this )->shared_from_this(), _1, _2 ) );
+
+    }
+
+    template<class Buffers>
+    void do_async_receive ( const Buffers& buffers ) {
+        m_socket.async_read_some (
+            buffers,
+            boost::bind ( &Derived::async_receive_completed, static_cast<Derived*> ( this )->shared_from_this(), _1, _2 ) );
+    }
+
+    boost::asio::ip::tcp::socket& socket() {
+        return m_socket;
+    }
+
+private:
+    boost::asio::ip::tcp::socket m_socket;
+};
+
+
+} //rpc
+} //detail
 
 #endif
