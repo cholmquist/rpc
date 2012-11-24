@@ -1,5 +1,5 @@
 /*=============================================================================
-    Copyright (c) 2007-2011 Christian Holmquist
+    Copyright (c) 2012 Christian Holmquist
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -13,16 +13,18 @@
 
 #define BOOST_DATE_TIME_NO_LIB
 
-#include "common/async_connection.hpp"
+
+#include <boost/rpc/service/async_stream_connection.hpp>
+#include <boost/rpc/service/async_tcp.hpp>
+#include <boost/rpc/service/async_commander.hpp>
+
 #include <boost/rpc/protocol/bitwise.hpp>
 #include <boost/rpc/core/async_remote.hpp>
 #include <boost/rpc/core/local.hpp>
-#include <boost/variant/get.hpp>
 
 #include <boost/detail/lightweight_test.hpp>
 
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/function/function2.hpp>
+#include <boost/smart_ptr/enable_shared_from_this.hpp>
 
 
 #include <map>
@@ -48,69 +50,54 @@ struct bitwise
 		writer(bitwise, std::vector<char> & v) : rpc::protocol::bitwise_writer<>(v) {}
 	};
 };
-
-template<class FunctionID, class CallID = char>
-struct commands
-{
-	typedef CallID call_id_type;
-	struct call
-	{
-		CallID call_id;
-		FunctionID function_id;
-		call()
-			: call_id()
-			, function_id()
-		{}
-
-		template<class Archive>
-		void serialize(Archive& ar, unsigned int)
-		{
-			ar & call_id;
-			ar & function_id;
-		}
-	};
-
-	struct result
-	{
-		CallID call_id;
-		result()
-			: call_id()
-		{}
-
-		result(char call_id)
-			: call_id(call_id)
-		{}
-
-		template<class Archive>
-		void serialize(Archive& ar, unsigned int)
-		{
-			ar & call_id;
-		}
-	};
-
-	struct result_exception
-	{
-		CallID call_id;
-		result_exception()
-			: call_id()
-		{}
-
-		result_exception(char call_id)
-			: call_id(call_id)
-		{}
-
-		template<class Archive>
-		void serialize(Archive& ar, unsigned int)
-		{
-			ar & call_id;
-		}
-	};
-
-};
  
-typedef commands<std::string> commands_t;
-typedef boost::variant<commands_t::call, commands_t::result, commands_t::result_exception> header;
+typedef rpc::commands<std::string, char> commands_t;
+typedef std::vector<char> buffer_type;
+typedef boost::function<void(buffer_type&, buffer_type&)> local_function_type;
+typedef std::map<commands_t::function_id_type, local_function_type> function_map;
 
+class connection
+  : public rpc::async_stream<connection, commands_t::variant_type, bitwise>
+  , public rpc::async_tcp<connection>
+  , public rpc::async_commander<connection, commands_t, function_map>
+  , public boost::enable_shared_from_this<connection>
+{
+public:
+  connection(asio::io_service& ios, function_map& function_map)
+    : async_tcp_t(ios)
+    , async_commander_t(function_map)
+    {
+    }
+   void receive_error(boost::system::error_code)
+    {
+
+    }
+    template<class Command>
+    bool command(const Command& c, std::vector<char>& buffer)
+    {
+      return async_commander_t::command(c, buffer);
+    }
+    
+
+    bool command(const commands_t::result_exception& r, std::vector<char>& buffer)
+    {
+      try
+      {
+	  this->invoke_result_handler(r.call_id, buffer, rpc::remote_exception);
+      }
+      catch(rpc_test::quit_exception&)
+      {
+	      return false;
+      }
+      return true;
+    }
+
+      virtual void connected(error_code ec) = 0;
+  
+  
+};
+
+#if 0
 template<class FunctionID>
 struct library
 {
@@ -288,16 +275,17 @@ struct basic_connection
 };
 
 typedef basic_connection<library_t> connection;
+#endif
 
 typedef boost::shared_ptr<connection> connection_ptr;
 
 
 void rpc_async_call(connection_ptr c, const std::string& id, std::vector<char>& data)
 {
-	c->async_call(id, data, result_handler());
+	c->async_call(id, data, connection::result_handler());
 }
 
-void rpc_async_call(connection_ptr c, const std::string& id, std::vector<char>& data, const result_handler& handler)
+void rpc_async_call(connection_ptr c, const std::string& id, std::vector<char>& data, const connection::result_handler& handler)
 {
 	c->async_call(id, data, handler);
 }
@@ -311,7 +299,7 @@ void on_sig1(char result, const error_code& ec)
 void do_quit(error_code ec)
 {
 	BOOST_TEST_EQ(ec, rpc::remote_exception);
-	throw rpc_test::quit_exception();
+	throw rpc::abort_exception();
 }
 
 void on_increment(connection_ptr client, int result, error_code ec)
@@ -337,14 +325,15 @@ void test1(char in, char& out)
 	out = 53;
 }
 
-class server_connection : public basic_connection<library_t>
+class server_connection : public connection
 {
 public:
-      server_connection(boost::asio::io_service& ios, library_t &lib) : basic_connection<library_t>(ios, lib, "server")
+      server_connection(asio::io_service& ios, function_map_type &fm)
+      : connection(ios, fm)
       {
       }
       
-      virtual void connected(boost::system::error_code ec)
+      virtual void connected(error_code ec)
       {
 	if(!ec)
 	{
@@ -354,21 +343,23 @@ public:
   
 };
 
-class client_connection : public basic_connection<library_t>
+class client_connection : public connection
 {
 public:
-      client_connection(boost::asio::io_service& ios, library_t &lib) : basic_connection<library_t>(ios, lib, "client")
+      client_connection(asio::io_service& ios, function_map_type &fm)
+      : connection(ios, fm)
       {
+	
       }
       
-      virtual void connected(boost::system::error_code ec)
+      virtual void connected(error_code ec)
       {
 	if(!ec)
 	{
 		this->start();
 		rpc::async_remote<bitwise> async_remote;
-		async_remote(rpc_test::void_char, shared_from_this_ex(), &on_sig1)(5);
-		on_increment(shared_from_this_ex(), 0, error_code());
+		async_remote(rpc_test::void_char, shared_from_this(), &on_sig1)(5);
+		on_increment(shared_from_this(), 0, error_code());
 	}
 	else
 	{
@@ -395,14 +386,14 @@ namespace server
 int main()
 {
 	asio::io_service ios;
-	library_t client_lib;
-	library_t server_lib;
+	function_map client_lib;
+	function_map server_lib;
 
 	rpc::local<bitwise> local; 
 
-	server_lib.add(local(rpc_test::void_char, &test1));
-	server_lib.add(local(rpc_test::increment, &server::increment));
-	server_lib.add(local(rpc_test::quit, &server::quit));
+	server_lib.insert(local(rpc_test::void_char, &test1));
+	server_lib.insert(local(rpc_test::increment, &server::increment));
+	server_lib.insert(local(rpc_test::quit, &server::quit));
 
 	connection_ptr client(new client_connection(ios, client_lib));
 	connection_ptr server(new server_connection(ios, server_lib));
@@ -417,3 +408,4 @@ int main()
 	
 	return boost::report_errors();
 }
+

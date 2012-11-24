@@ -39,8 +39,16 @@ struct unknown_exception : public std::exception
 {
 	virtual const char* what() const throw()
 	{
-		return "Unknown rpc exception";
+		return "rpc.unknown_exception";
 	};
+};
+
+struct abort_exception : public std::exception
+{
+      virtual const char* what() const throw()
+      {
+	  return "rpc.abort";
+      }
 };
 
 }}
