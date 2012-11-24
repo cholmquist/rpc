@@ -1,210 +1,163 @@
-#ifndef BOOST_RPC_SERVICE_ASYNC_STREAM_HPP
-#define BOOST_RPC_SERVICE_ASYNC_STREAM_HPP
+#ifndef BOOST_RPC_ASYNC_TCP_HPP
+#define BOOST_RPC_ASYNC_TCP_HPP
 
-#include <boost/rpc/service/stream_header.hpp>
-#include <boost/rpc/core/tags.hpp> // TODO: remove
-#include <boost/array.hpp>
-#include <boost/assert.hpp>
-#include <boost/function/function2.hpp>
-#include <boost/system/error_code.hpp>
-#include <boost/asio/buffer.hpp>
-#include <boost/checked_delete.hpp>
-#include <boost/intrusive/slist.hpp>
+#include <boost/asio/io_service.hpp>
+#include <boost/asio/write.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/bind.hpp>
 
-namespace boost{ namespace rpc{
-	
-	namespace detail
-	{
-		template<class Handler>
-		struct packet : intrusive::make_slist_base_hook<>::type
-		{
-			typedef std::vector<char> buffer_type;
+namespace boost
+{
+namespace rpc
+{
+namespace detail
+{
 
-			typedef typename boost::intrusive::make_slist<packet,
-				intrusive::cache_last<true>, intrusive::constant_time_size<false> >::type list_type;
+template<class ConnectionPtr>
+struct connect_handler {
+    connect_handler ( ConnectionPtr ptr )	:
+        m_ptr ( ptr )
+    {}
 
-			template<class Header, class Serialize>
-			packet(const Header& header, buffer_type& payload, const Handler& handler, Serialize& serialize)
-				: m_handler(handler)
-			{
-				typename Serialize::writer(serialize, m_header)(header, rpc::tags::default_());
-				m_payload.swap(payload);
-				m_control_buffer = control_data::encode(m_control, m_header.size(), m_payload.size());
-			}
+    void operator() ( const boost::system::error_code& ec ) {
+        m_ptr->connected ( ec );
+    }
 
-			boost::array<asio::const_buffer, 3> to_buffers() const
-			{
-				boost::array<asio::const_buffer, 3> buffers;
-				buffers[0] = m_control_buffer;
-				if(!m_header.empty())
-				{
-					buffers[1] = asio::const_buffer(&m_header[0], m_header.size());
-				}
-				if(!m_payload.empty())
-				{
-					buffers[2] = asio::const_buffer(&m_payload[0], m_payload.size());
-				}
-				return buffers;
-			}
+private:
+    ConnectionPtr m_ptr;
 
-			control_data::buffer_type m_control;
-			asio::const_buffer m_control_buffer;
-			buffer_type m_header;
-			buffer_type m_payload;
-			Handler m_handler;
+};
 
-		private:
-			packet(const packet&);
-			packet& operator=(const packet&);
-		};
-
-	}
-
-namespace service {
-
-template<class Derived, class Header, class Serialize>
-class async_stream_connection
+class tcp_acceptor
 {
 public:
+    typedef boost::asio::ip::tcp tcp;
 
-	typedef std::vector<char> buffer_type;
-	typedef boost::function<void(buffer_type&, system::error_code)> async_handler;
-	typedef Header header_type;
-	typedef Serialize serialize_type;
-	typedef rpc::detail::packet<async_handler> packet;
-	typedef typename packet::list_type packet_list;
+    tcp_acceptor (
+        boost::asio::io_service& ios,
+        const std::string& address,
+        const std::string& service_name ) :
+        acceptor_ ( ios ) {
+        typename tcp::resolver resolver ( ios );
+        typename tcp::resolver::query query ( address, service_name );
+        typename tcp::endpoint endpoint = *resolver.resolve ( query );
+        acceptor_.open ( endpoint.protocol() );
+        acceptor_.set_option ( tcp::acceptor::reuse_address ( true ) );
+        acceptor_.bind ( endpoint );
+        acceptor_.listen();
+    }
 
-	async_stream_connection(std::size_t receive_buffer_size = 64, serialize_type serialize = serialize_type())
-		: m_serialize(serialize)
-		, m_recv_buffer(receive_buffer_size)
-	{
-	}
+    template<class ConnectionPtr>
+    void async_accept ( ConnectionPtr connection ) {
+        acceptor_.async_accept ( connection->socket(), connect_handler<ConnectionPtr> ( connection ) );
+    }
 
-	~async_stream_connection()
-	{
-		m_send_queue.clear_and_dispose(boost::checked_deleter<packet>());
-	}
-
-	void async_send(const header_type& header, buffer_type& payload, const async_handler& handler = async_handler() )
-	{
-		std::auto_ptr<packet> p(new packet(header, payload, handler, m_serialize));
-		bool do_send = m_send_queue.empty();
-		m_send_queue.push_back(*p.release());
-		if(do_send)
-		{
-			priv_send_one();
-		}
-	}
-
-	void start()
-	{
-		priv_recv();
-	}
-
-protected:
-
-	void async_send_completed(const system::error_code& err,std::size_t size)
-	{
-		std::auto_ptr<packet> p(&m_send_queue.front());
-		m_send_queue.pop_front();
-		bool do_send = !m_send_queue.empty(); // Check queue before invoking handler, as it may call async_send
-		if(p->m_handler) // The handler is optional
-		{
-			p->m_handler(p->m_payload, err);
-		}
-		if(do_send)
-		{
-			priv_send_one();
-		}
-	}
-  
-	void async_receive_completed(const system::error_code& ec, std::size_t size)
-	{
-		if(ec)
-		{
-			static_cast<Derived*>(this)->receive_error(ec);
-			return;
-		}
-		m_recv_buffer.commit(size);
-		while(!m_recv_buffer.empty())
-		{
-			if(m_control_decoder.is_done())
-			{
-			    if(m_header_buffer.size() != m_control_decoder.header_size())
-			    {
-				m_recv_buffer.flush(std::back_inserter(m_header_buffer), m_control_decoder.header_size() - m_header_buffer.size());
-			    }
-			    else if(m_payload_buffer.size() != m_control_decoder.payload_size())
-			    {
-				m_recv_buffer.flush(std::back_inserter(m_payload_buffer), m_control_decoder.payload_size() - m_payload_buffer.size());
-			    }
-			    if(m_header_buffer.size() == m_control_decoder.header_size() &&
-			      m_payload_buffer.size() == m_control_decoder.payload_size())
-			    {
-				bool success = this->priv_dispatch();
-				m_control_decoder.reset();
-				if(!success) // dispatcher signalled to stop further invocation
-				{
-				  return;
-				}
-			    }
-			}
-			else
-			{
-				boost::tribool result = m_control_decoder.process(m_recv_buffer.pop());
-				if(result == true)
-				{
-				      m_header_buffer.clear();
-				      m_payload_buffer.clear();
-				}
-				else if(result == false)
-				{
-					static_cast<Derived*>(this)->receive_error(boost::system::error_code()); // TODO: new error code
-					return;
-				}
-			}
-		}
-		this->priv_recv();
-	}
-
-  
 private:
+    typename tcp::acceptor acceptor_;
+};
 
-	void priv_recv()
-	{
-		m_recv_buffer.reset2();
-		static_cast<Derived*>(this)->do_async_receive(asio::mutable_buffers_1(m_recv_buffer.prepare()));
-	}
+class tcp_connector
+{
+    typedef boost::asio::ip::tcp tcp;
+    template<class Handler>
+    struct async_iterator {
+        tcp::socket& m_socket;
+        tcp::resolver::iterator m_endpoint_itr;
+        Handler m_handler;
 
+        async_iterator ( tcp::socket& sock, Handler h )
+            : m_socket ( sock )
+            , m_endpoint_itr()
+            , m_handler ( h ) {
 
-	bool priv_dispatch()
-	{
-		Header header;
-		typename Serialize::reader(m_serialize, m_header_buffer)(header, rpc::tags::default_());
-		return static_cast<Derived*>(this)->receive(header, m_payload_buffer);
+        }
 
-	}
+        // Handle connect
+        void operator() ( const boost::system::error_code& ec ) {
+            if ( !ec ) {
+                m_handler ( ec );
+            } else {
+                m_socket.close();
+                if ( ++m_endpoint_itr != tcp::resolver::iterator() ) {
+                    m_socket.async_connect ( *m_endpoint_itr, *this );
+                } else {
+                    m_handler ( ec );
+                }
+            }
+        }
 
-	void priv_send_one()
-	{
-		const packet& p = m_send_queue.front();
-		static_cast<Derived*>(this)->do_async_send(p.to_buffers());
+        // Handle resolve
+        void operator() ( const boost::system::error_code& ec, tcp::resolver::iterator endpoint_itr ) {
+            if ( !ec ) {
+                m_endpoint_itr = endpoint_itr;
+                m_socket.async_connect ( *m_endpoint_itr, *this );
+            } else {
+                m_handler ( ec );
+            }
+        }
 
-	}
+    private:
+        async_iterator& operator= ( const async_iterator& );
+    };
 
-	serialize_type m_serialize;
-	packet_list m_send_queue;
-	std::vector<char> m_recv_payload;
-	buffer_type m_header_buffer;
-	buffer_type m_payload_buffer;
-	header_type m_recv_header;
-	rpc::detail::control_data::decoder m_control_decoder;
-	rpc::detail::receive_buffer m_recv_buffer;
+public:
+    tcp::endpoint m_endpoint;
+
+    tcp_connector ( boost::asio::io_service& ios, const std::string& host_name, const std::string& service_name )
+        : m_endpoint() {
+        tcp::resolver resolver ( ios );
+        tcp::resolver::query query ( host_name, service_name );
+        m_endpoint = *resolver.resolve ( query );
+    }
+
+    template<class ConnectionPtr>
+    void async_connect ( ConnectionPtr connection ) {
+        connection->socket().async_connect ( m_endpoint, connect_handler<ConnectionPtr> ( connection ) );
+    }
+
 };
 
 
-}
-}
-}
+} //detail
+
+template<class Derived>
+class async_tcp
+{
+
+public:
+
+    typedef detail::tcp_acceptor acceptor;
+    typedef detail::tcp_connector connector;
+
+    explicit async_tcp ( boost::asio::io_service& ios )
+        : m_socket ( ios )
+    {}
+
+    template<class Buffers>
+    void do_async_send ( const Buffers& buffers ) {
+        boost::asio::async_write ( m_socket,
+                                   buffers,
+                                   boost::bind ( &Derived::async_send_completed, static_cast<Derived*> ( this )->shared_from_this(), _1, _2 ) );
+
+    }
+
+    template<class Buffers>
+    void do_async_receive ( const Buffers& buffers ) {
+        m_socket.async_read_some (
+            buffers,
+            boost::bind ( &Derived::async_receive_completed, static_cast<Derived*> ( this )->shared_from_this(), _1, _2 ) );
+    }
+
+    boost::asio::ip::tcp::socket& socket() {
+        return m_socket;
+    }
+
+private:
+    boost::asio::ip::tcp::socket m_socket;
+};
+
+
+} //rpc
+} //detail
 
 #endif

@@ -107,7 +107,7 @@ struct commands
 	};
 
 };
-
+ 
 typedef commands<std::string> commands_t;
 typedef boost::variant<commands_t::call, commands_t::result, commands_t::result_exception> header;
 
@@ -274,6 +274,11 @@ struct basic_connection
 		send_handler x(*this, call.call_id);
 		this->async_send(call, data);
 	}
+	
+	boost::shared_ptr<basic_connection<Library> > shared_from_this_ex()
+	{
+	  return boost::static_pointer_cast<basic_connection<Library> >(shared_from_this());
+	}
 
 	typedef std::map<commands_t::call_id_type, result_handler> result_handler_map;
 	result_handler_map m_result_handlers;
@@ -283,7 +288,9 @@ struct basic_connection
 };
 
 typedef basic_connection<library_t> connection;
+
 typedef boost::shared_ptr<connection> connection_ptr;
+
 
 void rpc_async_call(connection_ptr c, const std::string& id, std::vector<char>& data)
 {
@@ -324,34 +331,52 @@ void on_increment(connection_ptr client, int result, error_code ec)
 	}
 }
 
-void run_client(boost::system::error_code ec, connection_ptr client)
-{
-	if(!ec)
-	{
-		client->start();
-		rpc::async_remote<bitwise> async_remote;
-		async_remote(rpc_test::void_char, client, &on_sig1)(5);
-		on_increment(client, 0, error_code());
-	}
-	else
-	{
-		BOOST_TEST(!ec);
-	}
-}
-
-void run_server(boost::system::error_code ec, connection_ptr server)
-{
-	if(!ec)
-	{
-		server->start();
-	}
-}
-
 void test1(char in, char& out)
 {
 	BOOST_TEST(in == 5);
 	out = 53;
 }
+
+class server_connection : public basic_connection<library_t>
+{
+public:
+      server_connection(boost::asio::io_service& ios, library_t &lib) : basic_connection<library_t>(ios, lib, "server")
+      {
+      }
+      
+      virtual void connected(boost::system::error_code ec)
+      {
+	if(!ec)
+	{
+		this->start();
+	}
+      }
+  
+};
+
+class client_connection : public basic_connection<library_t>
+{
+public:
+      client_connection(boost::asio::io_service& ios, library_t &lib) : basic_connection<library_t>(ios, lib, "client")
+      {
+      }
+      
+      virtual void connected(boost::system::error_code ec)
+      {
+	if(!ec)
+	{
+		this->start();
+		rpc::async_remote<bitwise> async_remote;
+		async_remote(rpc_test::void_char, shared_from_this_ex(), &on_sig1)(5);
+		on_increment(shared_from_this_ex(), 0, error_code());
+	}
+	else
+	{
+		BOOST_TEST(!ec);
+	}
+      }
+  
+};
 
 namespace server
 {
@@ -379,13 +404,13 @@ int main()
 	server_lib.add(local(rpc_test::increment, &server::increment));
 	server_lib.add(local(rpc_test::quit, &server::quit));
 
-	connection_ptr client(new connection(ios, client_lib, "client"));
-	connection_ptr server(new connection(ios, server_lib, "server"));
+	connection_ptr client(new client_connection(ios, client_lib));
+	connection_ptr server(new server_connection(ios, server_lib));
+	connection::acceptor acceptor(ios, "127.0.0.1", "10001");
+	connection::connector connector(ios, "127.0.0.1", "10001");
 
-	rpc_test::stream_connector<asio::ip::tcp> connector(ios);
-	rpc_test::stream_acceptor<asio::ip::tcp> acceptor(ios, "127.0.0.1", "10001");
-	acceptor.async_accept(server->socket(), boost::bind(&run_server, _1, server));
-	connector.async_connect(client->socket(), "127.0.0.1", "10001", boost::bind(&run_client, _1, client));
+	acceptor.async_accept(server);
+	connector.async_connect(client);
 
 	ios.run();
 	BOOST_TEST(server::m_counter == N_ROUNDTRIPS);
