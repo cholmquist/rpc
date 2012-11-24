@@ -5,7 +5,6 @@
 #include <boost/asio/write.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/bind.hpp>
-#include <vector>
 
 namespace boost{
 namespace rpc{
@@ -24,7 +23,7 @@ namespace rpc{
       {
 		  boost::asio::async_write(m_socket,
 			  buffers, 
-			  boost::bind(&Derived::async_send_completed, static_cast<Derived>(this)->shared_from_this(), _1, _2));
+			  boost::bind(&Derived::async_send_completed, static_cast<Derived*>(this)->shared_from_this(), _1, _2));
 	
       }
 
@@ -33,8 +32,13 @@ namespace rpc{
       {
 	  m_socket.async_read_some(
 	    buffers,
-	    boost::bind(&Derived::async_receive_completed, static_cast<Derived>(this)->shared_from_this(), _1, _2));
+	    boost::bind(&Derived::async_receive_completed, static_cast<Derived*>(this)->shared_from_this(), _1, _2));
       }
+      
+      void async_accept(const std::string& address, const std::string& service_name)
+      {
+      }
+
       
       boost::asio::ip::tcp::socket& socket() { return m_socket;}
 

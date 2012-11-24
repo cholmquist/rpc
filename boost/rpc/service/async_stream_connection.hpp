@@ -101,8 +101,6 @@ public:
 		priv_recv();
 	}
 
-protected:
-
 	void async_send_completed(const system::error_code& err,std::size_t size)
 	{
 		std::auto_ptr<packet> p(&m_send_queue.front());
