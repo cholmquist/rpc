@@ -125,7 +125,7 @@ class async_tcp
 {
 
 public:
-
+    typedef async_tcp<Derived> async_tcp_t;
     typedef detail::tcp_acceptor acceptor;
     typedef detail::tcp_connector connector;
 

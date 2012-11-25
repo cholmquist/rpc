@@ -2,6 +2,7 @@
 #define BOOST_RPC_ASYNC_STREAM_CONNECTION_HPP
 
 #include <boost/rpc/service/stream_header.hpp>
+#include <boost/rpc/core/exception.hpp>
 #include <boost/rpc/core/tags.hpp> // TODO: remove
 #include <boost/array.hpp>
 #include <boost/assert.hpp>
@@ -60,13 +61,11 @@ namespace boost{ namespace rpc{
 
 	}
 
-namespace service {
-
 template<class Derived, class Header, class Serialize>
-class async_stream_connection
+class async_stream
 {
 public:
-
+	typedef async_stream<Derived, Header, Serialize> async_stream_t;
 	typedef std::vector<char> buffer_type;
 	typedef boost::function<void(buffer_type&, system::error_code)> async_handler;
 	typedef Header header_type;
@@ -74,13 +73,13 @@ public:
 	typedef rpc::detail::packet<async_handler> packet;
 	typedef typename packet::list_type packet_list;
 
-	async_stream_connection(std::size_t receive_buffer_size = 64, serialize_type serialize = serialize_type())
+	async_stream(std::size_t receive_buffer_size = 64, serialize_type serialize = serialize_type())
 		: m_serialize(serialize)
 		, m_recv_buffer(receive_buffer_size)
 	{
 	}
 
-	~async_stream_connection()
+	~async_stream()
 	{
 		m_send_queue.clear_and_dispose(boost::checked_deleter<packet>());
 	}
@@ -139,9 +138,17 @@ public:
 			    if(m_header_buffer.size() == m_control_decoder.header_size() &&
 			      m_payload_buffer.size() == m_control_decoder.payload_size())
 			    {
-				bool success = this->priv_dispatch();
+				Header header;
+				{
+				  typename Serialize::reader reader(m_serialize, m_header_buffer);
+				  reader(header, rpc::tags::default_());
+				}
 				m_control_decoder.reset();
-				if(!success) // dispatcher signalled to stop further invocation
+				try
+				{
+				  static_cast<Derived*>(this)->receive(header, m_payload_buffer);
+				}
+				catch(abort_exception&)
 				{
 				  return;
 				}
@@ -174,15 +181,6 @@ private:
 		static_cast<Derived*>(this)->do_async_receive(asio::mutable_buffers_1(m_recv_buffer.prepare()));
 	}
 
-
-	bool priv_dispatch()
-	{
-		Header header;
-		typename Serialize::reader(m_serialize, m_header_buffer)(header, rpc::tags::default_());
-		return static_cast<Derived*>(this)->receive(header, m_payload_buffer);
-
-	}
-
 	void priv_send_one()
 	{
 		const packet& p = m_send_queue.front();
@@ -201,7 +199,6 @@ private:
 };
 
 
-}
 }
 }
 

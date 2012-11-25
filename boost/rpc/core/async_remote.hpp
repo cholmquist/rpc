@@ -11,6 +11,7 @@
 #include <boost/rpc/core/arg.hpp>
 #include <boost/rpc/core/tags.hpp>
 #include <boost/rpc/core/error.hpp>
+#include <boost/rpc/core/commands.hpp>
 #include <boost/mpl/single_view.hpp>
 #include <boost/mpl/joint_view.hpp>
 #include <boost/fusion/adapted/mpl.hpp>
