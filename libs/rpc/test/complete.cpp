@@ -85,7 +85,7 @@ public:
       {
 	  this->invoke_result_handler(r.call_id, buffer, rpc::remote_exception);
       }
-      catch(rpc_test::quit_exception&)
+      catch(rpc::abort_exception&)
       {
 	      return false;
       }
@@ -379,7 +379,7 @@ namespace server
 
 	void quit()
 	{
-		throw rpc_test::quit_exception();
+		throw rpc::abort_exception();
 	}
 }
 

@@ -27,7 +27,7 @@ namespace rpc_test
 		}
 	};
 
-	struct quit_exception : std::exception
+	struct qquit_exception : std::exception
 	{
 	};
 

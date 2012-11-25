@@ -9,6 +9,7 @@
 #define BOOST_RPC_ASYNC_COMMANDER_HPP_INCLUDED
 
 #include <boost/rpc/core/error.hpp>
+#include <boost/rpc/core/exception.hpp>
 #include <boost/function/function2.hpp>
 #include <boost/variant/apply_visitor.hpp>
 #include <boost/variant/static_visitor.hpp>
@@ -74,8 +75,17 @@ protected:
 	typename function_map_type::const_iterator itr = m_function_map.find(c.function_id);
 	if(itr != m_function_map.end())
 	{
-	    itr->second(input_buffer, output_buffer);
-	    (static_cast<Derived*>(this))->async_send(typename Commands::result(c.call_id), output_buffer);
+	    try
+	    {
+	      itr->second(input_buffer, output_buffer);
+	      (static_cast<Derived*>(this))->async_send(typename Commands::result(c.call_id), output_buffer);
+	    }
+	    catch(const abort_exception&)
+	    {
+	      output_buffer.clear(); // reuse the buffer
+	      (static_cast<Derived*>(this))->async_send(typename Commands::result_exception(c.call_id), output_buffer);
+	      return false;
+	    }
 	    return true;
 	}
 	return false;
@@ -89,8 +99,16 @@ protected:
 
     bool command(const typename Commands::result_exception& r, buffer_type& buffer)
     {
-      this->invoke_result_handler(r.call_id, buffer, rpc::remote_exception);
-      return true;
+		try
+		{
+			this->invoke_result_handler(r.call_id, buffer, rpc::remote_exception);
+		}
+		catch(abort_exception&)
+		{
+			return false;
+		}
+		return true;
+      
     }
 
     void invoke_result_handler(call_id_type id, buffer_type& buffer, const boost::system::error_code& ec)
