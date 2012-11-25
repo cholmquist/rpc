@@ -41,7 +41,7 @@ public:
     {
     }
 
-    bool receive(const variant_type& command, std::vector<char>& buffer)
+    void receive(const variant_type& command, std::vector<char>& buffer)
     {
         return boost::apply_visitor(command_visitor(static_cast<Derived*>(this), buffer), command);
     }
@@ -69,7 +69,7 @@ public:
 
 protected:
     
-    bool command(const typename Commands::call& c, buffer_type& input_buffer)
+    void command(const typename Commands::call& c, buffer_type& input_buffer)
     {
         std::vector<char> output_buffer;
 	typename function_map_type::const_iterator itr = m_function_map.find(c.function_id);
@@ -84,31 +84,19 @@ protected:
 	    {
 	      output_buffer.clear(); // reuse the buffer
 	      (static_cast<Derived*>(this))->async_send(typename Commands::result_exception(c.call_id), output_buffer);
-	      return false;
+	      throw;
 	    }
-	    return true;
 	}
-	return false;
     }
 
-    bool command(const typename Commands::result& r, buffer_type& buffer)
+    void command(const typename Commands::result& r, buffer_type& buffer)
     {
 	    this->invoke_result_handler(r.call_id, buffer, boost::system::error_code());
-	    return true;
     }
 
-    bool command(const typename Commands::result_exception& r, buffer_type& buffer)
+    void command(const typename Commands::result_exception& r, buffer_type& buffer)
     {
-		try
-		{
-			this->invoke_result_handler(r.call_id, buffer, rpc::remote_exception);
-		}
-		catch(abort_exception&)
-		{
-			return false;
-		}
-		return true;
-      
+	this->invoke_result_handler(r.call_id, buffer, rpc::remote_exception);
     }
 
     void invoke_result_handler(call_id_type id, buffer_type& buffer, const boost::system::error_code& ec)
@@ -129,14 +117,14 @@ protected:
 
 private:
 
-    struct command_visitor : boost::static_visitor<bool>
+    struct command_visitor : boost::static_visitor<void>
     {
 	command_visitor(Derived* t, buffer_type& buffer)
 	    : m_this(t)
 	    , m_buffer(buffer)
 	{}
 	template<class Command>
-	bool operator()(const Command& c) const
+	void operator()(const Command& c) const
 	{
 	    return m_this->command(c, m_buffer);
 	}

@@ -2,6 +2,7 @@
 #define BOOST_RPC_ASYNC_STREAM_CONNECTION_HPP
 
 #include <boost/rpc/service/stream_header.hpp>
+#include <boost/rpc/core/exception.hpp>
 #include <boost/rpc/core/tags.hpp> // TODO: remove
 #include <boost/array.hpp>
 #include <boost/assert.hpp>
@@ -137,9 +138,17 @@ public:
 			    if(m_header_buffer.size() == m_control_decoder.header_size() &&
 			      m_payload_buffer.size() == m_control_decoder.payload_size())
 			    {
-				bool success = this->priv_dispatch();
+				Header header;
+				{
+				  typename Serialize::reader reader(m_serialize, m_header_buffer);
+				  reader(header, rpc::tags::default_());
+				}
 				m_control_decoder.reset();
-				if(!success) // dispatcher signalled to stop further invocation
+				try
+				{
+				  static_cast<Derived*>(this)->receive(header, m_payload_buffer);
+				}
+				catch(abort_exception&)
 				{
 				  return;
 				}
@@ -170,15 +179,6 @@ private:
 	{
 		m_recv_buffer.reset2();
 		static_cast<Derived*>(this)->do_async_receive(asio::mutable_buffers_1(m_recv_buffer.prepare()));
-	}
-
-
-	bool priv_dispatch()
-	{
-		Header header;
-		typename Serialize::reader(m_serialize, m_header_buffer)(header, rpc::tags::default_());
-		return static_cast<Derived*>(this)->receive(header, m_payload_buffer);
-
 	}
 
 	void priv_send_one()
