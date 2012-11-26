@@ -13,6 +13,7 @@
 #include <boost/function/function2.hpp>
 #include <boost/variant/apply_visitor.hpp>
 #include <boost/variant/static_visitor.hpp>
+#include <boost/variant/get.hpp>
 #include <map>
 
 namespace boost {
@@ -46,6 +47,15 @@ public:
         return boost::apply_visitor(command_visitor(static_cast<Derived*>(this), buffer), command);
     }
     
+    void send_error(const variant_type& cmd, std::vector<char>& buffer, const system::error_code& ec)
+    {
+      if(const typename Commands::call* call = boost::get<typename Commands::call>(&cmd))
+      {
+	buffer.clear();
+	this->invoke_result_handler(call->call_id, buffer, ec);
+      }
+    }
+    
     void async_call(const function_id_type& id, std::vector<char>& data, const result_handler& handler)
     {
         typename Commands::call call;
@@ -64,7 +74,7 @@ public:
             call.call_id = 0;
         }
         call.function_id = id;
-        (static_cast<Derived*>(this))->async_send(call, data);
+        static_cast<Derived*>(this)->async_send_package(call, data);
     }
 
 protected:
@@ -78,12 +88,12 @@ protected:
 	    try
 	    {
 	      itr->second(input_buffer, output_buffer);
-	      (static_cast<Derived*>(this))->async_send(typename Commands::result(c.call_id), output_buffer);
+	     (static_cast<Derived*>(this))->async_send_package(typename Commands::result(c.call_id), output_buffer);
 	    }
 	    catch(const abort_exception&)
 	    {
 	      output_buffer.clear(); // reuse the buffer
-	      (static_cast<Derived*>(this))->async_send(typename Commands::result_exception(c.call_id), output_buffer);
+	      (static_cast<Derived*>(this))->async_send_package(typename Commands::result_exception(c.call_id), output_buffer);
 	      throw;
 	    }
 	}
@@ -91,7 +101,7 @@ protected:
 
     void command(const typename Commands::result& r, buffer_type& buffer)
     {
-	    this->invoke_result_handler(r.call_id, buffer, boost::system::error_code());
+	 this->invoke_result_handler(r.call_id, buffer, boost::system::error_code());
     }
 
     void command(const typename Commands::result_exception& r, buffer_type& buffer)

@@ -84,7 +84,7 @@ public:
 		m_send_queue.clear_and_dispose(boost::checked_deleter<packet>());
 	}
 
-	void async_send(const header_type& header, buffer_type& payload, const async_handler& handler = async_handler() )
+	void async_send_package(const header_type& header, buffer_type& payload, const async_handler& handler = async_handler())
 	{
 		std::auto_ptr<packet> p(new packet(header, payload, handler, m_serialize));
 		bool do_send = m_send_queue.empty();
@@ -100,14 +100,28 @@ public:
 		priv_recv();
 	}
 
-	void async_send_completed(const system::error_code& err,std::size_t size)
+	void completed_async_write(const system::error_code& ec,std::size_t size)
 	{
 		std::auto_ptr<packet> p(&m_send_queue.front());
 		m_send_queue.pop_front();
+				
+		if(!ec)
+		{
+			BOOST_ASSERT(asio::buffer_size(p->to_buffers()) == size);
+		}
+		else
+		{
+			header_type header;
+			typename Serialize::reader reader(Serialize(), p->m_header);
+			reader(header, tags::default_());
+			(static_cast<Derived*>(this))->send_error(header, p->m_payload, ec);
+		}
+
+		
 		bool do_send = !m_send_queue.empty(); // Check queue before invoking handler, as it may call async_send
 		if(p->m_handler) // The handler is optional
 		{
-			p->m_handler(p->m_payload, err);
+			p->m_handler(p->m_payload, ec);
 		}
 		if(do_send)
 		{
@@ -115,7 +129,7 @@ public:
 		}
 	}
   
-	void async_receive_completed(const system::error_code& ec, std::size_t size)
+	void completed_async_read_some(const system::error_code& ec, std::size_t size)
 	{
 		if(ec)
 		{
@@ -178,13 +192,13 @@ private:
 	void priv_recv()
 	{
 		m_recv_buffer.reset2();
-		static_cast<Derived*>(this)->do_async_receive(asio::mutable_buffers_1(m_recv_buffer.prepare()));
+		static_cast<Derived*>(this)->async_read_some(asio::mutable_buffers_1(m_recv_buffer.prepare()));
 	}
 
 	void priv_send_one()
 	{
 		const packet& p = m_send_queue.front();
-		static_cast<Derived*>(this)->do_async_send(p.to_buffers());
+		static_cast<Derived*>(this)->async_write(p.to_buffers());
 
 	}
 
