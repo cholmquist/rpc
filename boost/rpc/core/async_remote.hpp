@@ -154,52 +154,51 @@ namespace detail
 
 			receive_handler(Protocol p, Handler h) : handler_base(p, h) {}
 
-			void operator()(std::vector<char>& input, system::error_code const& err)
+			void operator()(std::vector<char>& input, system::error_code const& ec)
 			{
 				output_arg_types args;
+				reader r(this->p, input);
 
-				fusion::back(args).assign(err);
-
-				if(!err)
+				if(!ec)
 				{
-					reader r(this->p, input);
 					try
 					{
-						fusion::for_each(args,
-							functional::read_arg<reader>(r));
+						fusion::for_each(args, functional::read_arg<reader>(r));
 					}
 					catch(std::exception&)
 					{
-						fusion::back(args).assign(serialization_error);
-						fusion::invoke_procedure(this->h,
-							fusion::transform(args, functional::arg_type<reader>(r)));
+						invoke(args, r, serialization_error);
 						return;
 					}
-					fusion::invoke_procedure(this->h,
-						fusion::transform(args, functional::arg_type<reader>(r)));
+					invoke(args, r, ec);
 				}
-				else if(err == remote_exception) // NOTE: Output arguments are not decoded here, instead leave them default initialized.
+				else // Output arguments are not decoded here
 				{
-//					Signature::exception_handler::exception_type e;
-					reader r(this->p, input);
-					try
+					if(ec == remote_exception)
 					{
-						std::exception e;
-						r(e, tags::parameter());
-						throw boost::enable_current_exception(e);
+						try
+						{
+							std::exception e;
+							r(e, tags::parameter());
+							throw boost::enable_current_exception(e);
+						}
+						catch(std::exception&)
+						{
+							invoke(args, r, ec);
+						}
 					}
-					catch(std::exception&)
-					{
-						fusion::invoke_procedure(this->h,
-							fusion::transform(args, functional::arg_type<reader>(r)));
-					}
-				}
-				else
-				{
-					output_arg_types args;
-					fusion::back(args).assign(err);
+				      else
+				      {
+					      invoke(args, r, ec);
+				      }
 				}
 
+			}
+			void invoke(output_arg_types& args, reader& r, const system::error_code& ec)
+			{
+				fusion::back(args).assign(ec);
+				fusion::invoke_procedure(this->h, fusion::transform(args, functional::arg_type<reader>(r)));
+				
 			}
 		};
 

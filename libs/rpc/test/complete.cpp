@@ -85,6 +85,7 @@ public:
     }
 
       virtual void connected(error_code ec) = 0;
+      virtual void unconnected_test() = 0;
   
   
 };
@@ -153,7 +154,8 @@ public:
 		this->start();
 	}
       }
-  
+        virtual void unconnected_test() {}
+
 };
 
 class client_connection : public connection
@@ -178,6 +180,16 @@ public:
 	{
 		BOOST_TEST(!ec);
 	}
+      }
+      virtual void unconnected_test()
+      {
+		rpc::async_remote<bitwise> async_remote;
+		async_remote(rpc_test::void_char, shared_from_this(), &expect_socket_error)(5);
+      }
+      static void expect_socket_error(char result, const error_code& ec)
+      {
+	      BOOST_TEST(result == 0);
+	      BOOST_TEST(ec);
       }
   
 };
@@ -209,6 +221,11 @@ int main()
 	server_lib.insert(local(rpc_test::quit, &server::quit));
 
 	connection_ptr client(new client_connection(ios, client_lib));
+
+	client->unconnected_test();
+	ios.run();
+	ios.reset();
+	
 	connection_ptr server(new server_connection(ios, server_lib));
 	connection::acceptor acceptor(ios, "127.0.0.1", "10001");
 	connection::connector connector(ios, "127.0.0.1", "10001");
