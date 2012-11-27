@@ -136,14 +136,15 @@ void response_reverse(const std::string& str, error_code ec)
 int main()
 {
 	rpc::async_remote<bitwise> async_remote;
+	std::string str = "abcd";
 
 	async_remote(rpc_test::void_char, no_error, &response_no_error)(1);
 	async_remote(rpc_test::void_char, serialization_error, &response_serialization_error)(1);
 	async_remote(rpc_test::void_char, remote_exception_error, &response_remote_exception_error)(1);
 	async_remote(rpc_test::void_char, remote_exception_and_serialization_error, &response_remote_exception_and_serialization_error)(1);
 	async_remote(rpc_test::increment, increment_no_error, &response_increment)(1);
-	std::string str = "abcd";
 	async_remote(rpc_test::reverse, reverse_no_error, &response_reverse)(str);
+	async_remote(rpc_test::reverse2, reverse_no_error, &response_reverse)(str);
 	return boost::report_errors();
 }
 

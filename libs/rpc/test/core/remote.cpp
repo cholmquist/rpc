@@ -52,27 +52,22 @@ void rpc_call(error_mode mode, const signature_id, std::vector<char>& in, std::v
 	{
 		bitwise::writer w(bitwise(), out);
 		w((char)CHAR_RESULT, rpc::tags::parameter());
-//		c(v, error_code());
 	}
 	else if(mode == serialization_error) // response buffer not filled in
 	{
-//		c(v, error_code());
 	}
 	else if(mode == remote_exception_error) // generate an exception
 	{
 		bitwise::writer w(bitwise(), out);
 		w(rpc_test::exception("test"), rpc::tags::parameter());
-//		c(v, rpc::remote_exception);
 	}
 	else if(mode == remote_exception_and_serialization_error) // response buffer not filled in
 	{
-//		c(v, rpc::remote_exception);
 	}
 	else if(mode == increment_no_error)
 	{
 		bitwise::writer w(bitwise(), out);
 		w((int)2, rpc::tags::parameter());
-//		c(v, error_code());
 	}
 }
 
