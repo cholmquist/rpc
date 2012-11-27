@@ -128,6 +128,15 @@ namespace traits
 		};
 	};
 
+	struct async_remote_of_
+	{
+		template<typename P>
+		struct apply
+		{
+			typedef typename P::async_remote type;
+		};
+	};
+
 	struct is_read_
 	{
 		template<class T>

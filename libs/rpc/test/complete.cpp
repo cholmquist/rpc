@@ -20,11 +20,13 @@
 
 #include <boost/rpc/protocol/bitwise.hpp>
 #include <boost/rpc/core/async_remote.hpp>
+#include <boost/rpc/core/remote.hpp>
 #include <boost/rpc/core/local.hpp>
 
 #include <boost/detail/lightweight_test.hpp>
 
 #include <boost/smart_ptr/enable_shared_from_this.hpp>
+#include <boost/thread/thread.hpp>
 
 
 #include <map>
@@ -139,6 +141,20 @@ void test1(char in, char& out)
 	out = 53;
 }
 
+namespace server
+{
+	int m_counter = 0;
+	int increment(int i)
+	{
+		return m_counter += i;
+	}
+
+	void quit()
+	{
+		throw rpc::abort_exception();
+	}
+}
+
 class server_connection : public connection
 {
 public:
@@ -161,8 +177,12 @@ public:
 class client_connection : public connection
 {
 public:
+      std::auto_ptr<boost::thread> m_thread;
+      bool m_unconnected_test_called;
+  
       client_connection(asio::io_service& ios, function_map_type &fm)
       : connection(ios, fm)
+      , m_unconnected_test_called(false)
       {
 	
       }
@@ -172,6 +192,7 @@ public:
 	if(!ec)
 	{
 		this->start();
+		m_thread.reset(new boost::thread(&client_connection::thread_entry, this));
 		rpc::async_remote<bitwise> async_remote;
 		async_remote(rpc_test::void_char, shared_from_this(), &on_sig1)(5);
 		on_increment(shared_from_this(), 0, error_code());
@@ -184,36 +205,27 @@ public:
       virtual void unconnected_test()
       {
 		rpc::async_remote<bitwise> async_remote;
-		async_remote(rpc_test::void_char, shared_from_this(), &expect_socket_error)(5);
+ 		async_remote(rpc_test::void_char, shared_from_this(), boost::bind(&client_connection::expect_error, this, _1, _2)  )(5);
       }
-      static void expect_socket_error(char result, const error_code& ec)
+            
+      void thread_entry()
       {
+      }
+            
+      void expect_error(char result, const error_code& ec)
+      {
+	      m_unconnected_test_called = true;
 	      BOOST_TEST(result == 0);
 	      BOOST_TEST(ec);
       }
   
 };
 
-namespace server
-{
-	int m_counter = 0;
-	int increment(int i)
-	{
-		return m_counter += i;
-	}
-
-	void quit()
-	{
-		throw rpc::abort_exception();
-	}
-}
-
 int main()
 {
 	asio::io_service ios;
 	function_map client_lib;
 	function_map server_lib;
-
 	rpc::local<bitwise> local; 
 
 	server_lib.insert(local(rpc_test::void_char, &test1));

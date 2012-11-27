@@ -75,10 +75,9 @@ namespace boost{ namespace rpc {
 		typedef mpl::false_ is_read;
 		typedef mpl::true_ is_write;
 
-		mutable T value;
+		const T& value;
 
-		template<class X>
-		remote_arg(const X& x) : value(x) {}
+		remote_arg(const T& x) : value(x) {}
 
 		template<class Protocol>
 		void write(Protocol& p) const { p(value, protocol_tag()); }
@@ -94,7 +93,9 @@ namespace boost{ namespace rpc {
 		typedef mpl::true_ is_read;
 		typedef mpl::false_ is_write;
 
-		mutable T value;
+		T& value;
+		
+		remote_arg(T& t) : value(t) {}
 
 		template<class Protocol>
 		void read(Protocol& p) const
@@ -111,6 +112,46 @@ namespace boost{ namespace rpc {
 		}
 	};
 
+	template<typename T>
+	struct async_remote_arg : remote_arg<T>
+	{
+		async_remote_arg(T t) : remote_arg<T>(t) {}
+	};
+
+	template<typename T>
+	struct async_remote_arg<const T&> : remote_arg<const T&>
+	{
+		async_remote_arg(const T& t) : remote_arg<const T&>(t) {}
+	};
+
+	template<typename T>
+	struct async_remote_arg<T&>
+	{
+		typedef tags::parameter protocol_tag;
+		typedef T& type;
+		typedef mpl::true_ is_read;
+		typedef mpl::false_ is_write;
+
+		mutable T value;
+		
+		async_remote_arg() : value() {}
+
+		template<class Protocol>
+		void read(Protocol& p) const
+		{
+			p(value, protocol_tag());
+		}
+
+		type to_type() const { return value; }
+
+		template<class Protocol>
+		type get(Protocol&) const
+		{
+			return value;
+		}
+	};
+
+	
 	template<typename T>
 	struct default_result
 	{
@@ -161,6 +202,8 @@ namespace boost{ namespace rpc {
 
 			type to_type() const { return value; }
 		};
+		
+		typedef remote async_remote;
 	};
 	template<>
 	struct default_result<void>
@@ -180,6 +223,7 @@ namespace boost{ namespace rpc {
 			{}
 
 		};
+		typedef remote async_remote;
 	};
 
 	template<typename T>
@@ -187,6 +231,7 @@ namespace boost{ namespace rpc {
 	{
 		typedef local_arg<T> local;
 		typedef remote_arg<T> remote;
+		typedef async_remote_arg<T> async_remote;
 	};
 
 	namespace functional
