@@ -6,10 +6,12 @@
 cmake_minimum_required(VERSION 2.8)
 
 project(BOOST-RPC)
-
+#SET(Boost_DEBUG 1)
+set(Boost_ADDITIONAL_VERSIONS "1.53" "1.53.0")
 find_package(Boost COMPONENTS system thread REQUIRED)
-set(Boost_USE_STATIC_LIBS ON)
-set(Boost_USE_MULTI_THREADED ON)
+set(Boost_USE_STATIC_LIBS FALSE)
+set(Boost_USE_MULTITHREADED TRUE)
+set(Boost_USE_STATIC_RUNTIME FALSE)
 link_directories ( ${Boost_LIBRARY_DIRS} )
 include_directories( ${Boost_INCLUDE_DIRS} )
 

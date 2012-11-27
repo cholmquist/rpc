@@ -7,6 +7,7 @@ include_directories(${BOOST-RPC_SOURCE_DIR})
 
 set(TESTS
 	core/async_remote.cpp
+	core/remote.cpp
 	core/local.cpp
 	core/placeholder.cpp
 	serialize/bitwise.cpp
