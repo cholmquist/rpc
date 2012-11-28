@@ -13,7 +13,7 @@
 #include <boost/rpc/core/placeholder.hpp>
 #include <boost/rpc/core/async_remote.hpp>
 #include <boost/rpc/core/remote.hpp>
-#include <boost/concept_check.hpp>
+#include <boost/detail/lightweight_test.hpp>
 #include <exception>
 #include <cstring>
 
@@ -56,20 +56,20 @@ namespace rpc_test
 
 	    static const char arg1 = 'Z';
 	    static const char result = 'A';
-	    static bool impl_called = false;
-	    static bool async_handler_called = false;
-	    static bool async_call_called = false;
-	    static bool call_called = false;
+	    static int impl_called = 0;
+	    static int async_handler_called = 0;
+	    static int async_call_called = 0;
+	    static int call_called = 0;
 	    
 	    void impl(char in, char& out)
 	    {
-		impl_called = true;
+		impl_called++;
 		BOOST_TEST_EQ(in, arg1);
 		out = result;
 	    }
 	    void async_handler(char out, const boost::system::error_code& ec)
 	    {
-		async_handler_called = true;
+		async_handler_called++;
 		BOOST_TEST_EQ(out, result);
 		BOOST_TEST(!ec);
 	    }
@@ -77,7 +77,7 @@ namespace rpc_test
 	    template<class Protocol, class Remote>
 	    void async_call(Protocol p, Remote r)
 	    {
-		async_call_called = true;
+		async_call_called++;
 		boost::rpc::async_remote<Protocol> async_remote(p);
 		async_remote(sig, r, &async_handler)(arg1);
 	    }
@@ -85,7 +85,7 @@ namespace rpc_test
 	    template<class Protocol, class Remote>
 	    void call(Protocol p, Remote r)
 	    {
-		call_called = true;
+		call_called++;
 		boost::rpc::remote<Protocol> remote(p);
 		char out = 0;
 		remote(sig, r)(arg1, out);
@@ -94,10 +94,10 @@ namespace rpc_test
 	    
 	    void verify_called()
 	    {
-		BOOST_TEST(impl_called);
-		BOOST_TEST(async_handler_called);
-		BOOST_TEST(async_call_called);
-		//BOOST_TEST(call_called);
+		BOOST_TEST_EQ(impl_called, 2);
+		BOOST_TEST_EQ(async_handler_called, 1);
+		BOOST_TEST_EQ(async_call_called, 1);
+		BOOST_TEST_EQ(call_called, 1);
 	    }
 	}
 	

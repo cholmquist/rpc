@@ -70,6 +70,9 @@ class connection
   , public boost::enable_shared_from_this<connection>
 {
 public:
+    
+    typedef boost::shared_ptr<connection> shared_this_ptr;
+    
   connection(asio::io_service& ios, function_map& function_map)
     : async_tcp_t(ios)
     , async_commander_t(function_map)
@@ -116,12 +119,6 @@ void rpc_call(connection_ptr c, const std::string& id, std::vector<char>& in, st
 	rpc::call_over_async handler;
 	c->async_call(id, in, handler);
 	handler.get(out, ec);
-}
-
-void on_char(char result, const error_code& ec)
-{
-	BOOST_TEST(!ec);
-	BOOST_TEST_EQ(result, RESULT_1);
 }
 
 void do_quit(error_code ec)
@@ -207,11 +204,9 @@ public:
 	if(!ec)
 	{
 		this->start();
-		//m_thread.reset(new boost::thread(&client_connection::thread_entry, this));
-		//m_barrier.wait();
+		m_thread.reset(new boost::thread(&client_connection::thread_entry, this));
+		m_barrier.wait();
 		rpc_test::f1::async_call(bitwise(), shared_from_this());
-//		rpc::async_remote<bitwise> async_remote;
-//		async_remote(rpc_test::void_char, shared_from_this(), &on_char)(5);
 		on_increment(shared_from_this(), 0, error_code());
 	}
 	else

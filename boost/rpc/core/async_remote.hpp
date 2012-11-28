@@ -22,6 +22,7 @@
 #include <boost/fusion/functional/invocation/invoke_procedure.hpp>
 #include <boost/fusion/sequence/intrinsic/back.hpp>
 #include <boost/system/error_code.hpp>
+#include <vector>
 
 namespace boost{ namespace rpc{
 /*
