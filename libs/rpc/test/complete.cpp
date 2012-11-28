@@ -20,18 +20,25 @@
 
 #include <boost/rpc/protocol/bitwise.hpp>
 #include <boost/rpc/core/async_remote.hpp>
+#include <boost/rpc/core/remote.hpp>
+#include <boost/rpc/core/remote.hpp>
 #include <boost/rpc/core/local.hpp>
 
 #include <boost/detail/lightweight_test.hpp>
 
 #include <boost/smart_ptr/enable_shared_from_this.hpp>
+#include <boost/thread/thread.hpp>
+#include <boost/thread/barrier.hpp>
 
+
+#include "common/call_over_async.hpp"
 
 #include <map>
 
 #include "common/signatures.hpp"
 
 const int N_ROUNDTRIPS = 10;
+const char RESULT_1 = 'B';
 
 namespace rpc = boost::rpc;
 namespace asio = boost::asio;
@@ -63,6 +70,9 @@ class connection
   , public boost::enable_shared_from_this<connection>
 {
 public:
+    
+    typedef boost::shared_ptr<connection> shared_this_ptr;
+    
   connection(asio::io_service& ios, function_map& function_map)
     : async_tcp_t(ios)
     , async_commander_t(function_map)
@@ -103,10 +113,12 @@ void rpc_async_call(connection_ptr c, const std::string& id, std::vector<char>& 
 	c->async_call(id, data, handler);
 }
 
-void on_sig1(char result, const error_code& ec)
+void rpc_call(connection_ptr c, const std::string& id, std::vector<char>& in, std::vector<char>& out)
 {
-	BOOST_TEST(!ec);
-	BOOST_TEST_EQ((int)result, 53);
+	boost::system::error_code ec;
+	rpc::call_over_async handler;
+	c->async_call(id, in, handler);
+	handler.get(out, ec);
 }
 
 void do_quit(error_code ec)
@@ -135,8 +147,22 @@ void on_increment(connection_ptr client, int result, error_code ec)
 
 void test1(char in, char& out)
 {
-	BOOST_TEST(in == 5);
-	out = 53;
+	BOOST_TEST_EQ(in, 5);
+	out = RESULT_1;
+}
+
+namespace server
+{
+	int m_counter = 0;
+	int increment(int i)
+	{
+		return m_counter += i;
+	}
+
+	void quit()
+	{
+		throw rpc::abort_exception();
+	}
 }
 
 class server_connection : public connection
@@ -161,8 +187,14 @@ public:
 class client_connection : public connection
 {
 public:
+      std::auto_ptr<boost::thread> m_thread;
+      boost::barrier m_barrier;
+      bool m_unconnected_test_called;
+  
       client_connection(asio::io_service& ios, function_map_type &fm)
       : connection(ios, fm)
+      , m_unconnected_test_called(false)
+      , m_barrier(2)
       {
 	
       }
@@ -172,8 +204,9 @@ public:
 	if(!ec)
 	{
 		this->start();
-		rpc::async_remote<bitwise> async_remote;
-		async_remote(rpc_test::void_char, shared_from_this(), &on_sig1)(5);
+		m_thread.reset(new boost::thread(&client_connection::thread_entry, this));
+		m_barrier.wait();
+		rpc_test::f1::async_call(bitwise(), shared_from_this());
 		on_increment(shared_from_this(), 0, error_code());
 	}
 	else
@@ -184,39 +217,33 @@ public:
       virtual void unconnected_test()
       {
 		rpc::async_remote<bitwise> async_remote;
-		async_remote(rpc_test::void_char, shared_from_this(), &expect_socket_error)(5);
+ 		async_remote(rpc_test::f1::sig, shared_from_this(), boost::bind(&client_connection::expect_error, this, _1, _2)  )(5);
       }
-      static void expect_socket_error(char result, const error_code& ec)
+            
+      void thread_entry()
       {
+	m_barrier.wait();
+	rpc_test::f1::call(bitwise(), shared_from_this());
+      }
+            
+      void expect_error(char result, const error_code& ec)
+      {
+	      m_unconnected_test_called = true;
 	      BOOST_TEST(result == 0);
 	      BOOST_TEST(ec);
       }
   
 };
 
-namespace server
-{
-	int m_counter = 0;
-	int increment(int i)
-	{
-		return m_counter += i;
-	}
-
-	void quit()
-	{
-		throw rpc::abort_exception();
-	}
-}
-
 int main()
 {
 	asio::io_service ios;
 	function_map client_lib;
 	function_map server_lib;
-
 	rpc::local<bitwise> local; 
 
-	server_lib.insert(local(rpc_test::void_char, &test1));
+	rpc_test::register_all(local, server_lib);
+	//server_lib.insert(local(rpc_test::f, &test1));
 	server_lib.insert(local(rpc_test::increment, &server::increment));
 	server_lib.insert(local(rpc_test::quit, &server::quit));
 
@@ -235,7 +262,7 @@ int main()
 
 	ios.run();
 	BOOST_TEST(server::m_counter == N_ROUNDTRIPS);
-	
+	rpc_test::verify_all_called();
 	return boost::report_errors();
 }
 

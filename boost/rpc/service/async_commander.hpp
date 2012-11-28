@@ -14,11 +14,12 @@
 #include <boost/variant/apply_visitor.hpp>
 #include <boost/variant/static_visitor.hpp>
 #include <boost/variant/get.hpp>
+#include <boost/smart_ptr/make_shared.hpp>
 #include <map>
 
 namespace boost {
 namespace rpc {
-
+    
 template<class Derived, class Commands, class FunctionMap>
 class async_commander
 {
@@ -76,6 +77,13 @@ public:
         call.function_id = id;
         static_cast<Derived*>(this)->async_send_package(call, data);
     }
+    
+    void ts_async_call(const function_id_type& id, std::vector<char>& data, const result_handler& handler)
+    {
+	typedef ts_wrapper_async_call<typename Derived::shared_this_ptr> ts_wrapper;
+	ts_wrapper wrapper = boost::make_shared<ts_wrapper>(static_cast<Derived*>(this)->shared_from_this(), id, data, handler);
+	static_cast<Derived*>(this)->post_ts(wrapper);
+    }
 
 protected:
     
@@ -127,7 +135,31 @@ protected:
 
 private:
 
-    struct command_visitor : boost::static_visitor<void>
+    template<class ThisPtr>
+    struct ts_wrapper_async_call
+    {
+	ts_wrapper_async_call(ThisPtr p, const function_id_type& fid, buffer_type& buffer, const result_handler& handler)
+	: m_this(p)
+	, m_fid(fid)
+	, m_handler(handler)
+	
+	{
+	    m_buffer.swap(buffer);
+	}
+	
+	void operator()()
+	{
+	    m_this->async_call(m_fid, m_buffer, m_handler);
+	}
+
+	ThisPtr m_this;
+	function_id_type m_fid;
+	result_handler m_handler;
+	buffer_type m_buffer;
+	
+   };
+
+   struct command_visitor : boost::static_visitor<void>
     {
 	command_visitor(Derived* t, buffer_type& buffer)
 	    : m_this(t)

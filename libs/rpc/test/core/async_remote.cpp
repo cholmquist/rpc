@@ -15,6 +15,7 @@
 #include <boost/function/function2.hpp>
 #include <vector>
 #include <string>
+#include <algorithm>
 
 namespace rpc = boost::rpc;
 using boost::system::error_code;
@@ -43,6 +44,7 @@ enum error_mode
 	remote_exception_error,
 	remote_exception_and_serialization_error,
 	increment_no_error,
+	reverse_no_error,
 };
 
 
@@ -53,32 +55,45 @@ typedef boost::function<void(buffer_type&, const error_code&)> response;
 void rpc_async_call(error_mode mode, const signature_id, std::vector<char>& data, response c)
 {
 	std::vector<char> v;
+	boost::system::error_code ec;
 	if(mode == no_error) // generate one char as respone
 	{
 		bitwise::writer w(bitwise(), v);
 		w((char)CHAR_RESULT, rpc::tags::parameter());
-		c(v, error_code());
 	}
 	else if(mode == serialization_error) // response buffer not filled in
 	{
-		c(v, error_code());
 	}
 	else if(mode == remote_exception_error) // generate an exception
 	{
 		bitwise::writer w(bitwise(), v);
 		w(rpc_test::exception("test"), rpc::tags::parameter());
-		c(v, rpc::remote_exception);
+		ec = rpc::remote_exception;
 	}
 	else if(mode == remote_exception_and_serialization_error) // response buffer not filled in
 	{
-		c(v, rpc::remote_exception);
+		ec = rpc::remote_exception;
 	}
 	else if(mode == increment_no_error)
 	{
 		bitwise::writer w(bitwise(), v);
 		w((int)1, rpc::tags::parameter());
-		c(v, error_code());
 	}
+	else if(mode == reverse_no_error)
+	{
+		bitwise::reader r(bitwise(), data);
+		std::string str;
+		r(str, rpc::tags::parameter());
+		std::reverse(str.begin(), str.end());
+		bitwise::writer w(bitwise(), v);
+		w(str, rpc::tags::parameter());		
+	}
+	else
+	{
+	  BOOST_TEST(false);
+	}
+	c(v, ec);	  
+	
 }
 
 void response_no_error(char x, error_code ec)
@@ -113,15 +128,23 @@ void response_increment(int i, error_code ec)
 	BOOST_TEST(i == 1);
 }
 
+void response_reverse(const std::string& str, error_code ec)
+{
+	BOOST_TEST_EQ(str, "dcba");
+}
+
 int main()
 {
 	rpc::async_remote<bitwise> async_remote;
+	std::string str = "abcd";
 
 	async_remote(rpc_test::void_char, no_error, &response_no_error)(1);
 	async_remote(rpc_test::void_char, serialization_error, &response_serialization_error)(1);
 	async_remote(rpc_test::void_char, remote_exception_error, &response_remote_exception_error)(1);
 	async_remote(rpc_test::void_char, remote_exception_and_serialization_error, &response_remote_exception_and_serialization_error)(1);
 	async_remote(rpc_test::increment, increment_no_error, &response_increment)(1);
+	async_remote(rpc_test::reverse, reverse_no_error, &response_reverse)(str);
+	async_remote(rpc_test::reverse2, reverse_no_error, &response_reverse)(str);
 	return boost::report_errors();
 }
 

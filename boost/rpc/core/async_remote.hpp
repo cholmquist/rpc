@@ -22,6 +22,7 @@
 #include <boost/fusion/functional/invocation/invoke_procedure.hpp>
 #include <boost/fusion/sequence/intrinsic/back.hpp>
 #include <boost/system/error_code.hpp>
+#include <vector>
 
 namespace boost{ namespace rpc{
 /*
@@ -65,7 +66,7 @@ namespace detail
 	struct async_input_args
 	{
 		typedef typename fusion::result_of::as_vector<
-			typename detail::make_args<traits::remote_of_,
+			typename detail::make_args<traits::async_remote_of_,
 			typename Signature::parameter_types, Placeholders>::type
 		>::type arg_types;
 
@@ -77,7 +78,7 @@ namespace detail
 	template<class Signature, class Placeholders = void>
 	struct async_output_args
 	{
-		typedef detail::args_view<traits::remote_of_,
+		typedef detail::args_view<traits::async_remote_of_,
 			typename Signature::parameter_types> remote_args;
 
 //		typedef typename fusion::result_of::as_vector
@@ -88,7 +89,7 @@ namespace detail
 			typename detail::if_void<typename Signature::result_type,
 				output_args,
 				mpl::joint_view<
-					mpl::single_view<typename detail::make_result<traits::remote_of_, typename Signature::result_type>::type >,
+					mpl::single_view<typename detail::make_result<traits::async_remote_of_, typename Signature::result_type>::type >,
 					output_args>
 			>::type
 		>::type type;

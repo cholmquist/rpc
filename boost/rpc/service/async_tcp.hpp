@@ -134,7 +134,8 @@ public:
     {}
 
     template<class Buffers>
-    void async_write ( const Buffers& buffers ) {
+    void async_write ( const Buffers& buffers )
+    {
         boost::asio::async_write ( m_socket,
                                    buffers,
                                    boost::bind ( &Derived::completed_async_write, static_cast<Derived*> ( this )->shared_from_this(), _1, _2 ) );
@@ -142,12 +143,19 @@ public:
     }
 
     template<class Buffers>
-    void async_read_some ( const Buffers& buffers ) {
+    void async_read_some ( const Buffers& buffers )
+    {
         m_socket.async_read_some (
             buffers,
             boost::bind ( &Derived::completed_async_read_some, static_cast<Derived*> ( this )->shared_from_this(), _1, _2 ) );
     }
 
+    template<class Handler>
+    void post_ts(const Handler& handler)
+    {
+	m_socket.get_io_service().post(handler);
+    }
+    
     boost::asio::ip::tcp::socket& socket() {
         return m_socket;
     }
