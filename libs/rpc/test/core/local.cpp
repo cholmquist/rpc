@@ -113,14 +113,14 @@ int main()
 		i.clear();
 		o.clear();
 		i.push_arg((char) CHAR_INPUT);
-		l(rpc_test::void_char, &void_char).second(i, o);
+		l(rpc_test::f1::sig, &void_char).second(i, o);
 		BOOST_TEST_EQ(o.pop_arg<char>(), CHAR_OUTPUT);
 	}
 	{
 		i.clear();
 		o.clear();
 		i.push_arg((char) CHAR_INPUT);
-		l(rpc_test::void_char, &void_char_throw).second(i, o);
+		l(rpc_test::f1::sig, &void_char_throw).second(i, o);
 		BOOST_TEST(o.pop_arg<rpc_test::exception>() == rpc_test::exception("test"));
 	}
 
