@@ -6,6 +6,9 @@
 cmake_minimum_required(VERSION 2.8)
 
 project(BOOST-RPC)
+
+enable_testing()
+
 #SET(Boost_DEBUG 1)
 set(Boost_ADDITIONAL_VERSIONS "1.53" "1.53.0")
 find_package(Boost COMPONENTS system thread REQUIRED)
