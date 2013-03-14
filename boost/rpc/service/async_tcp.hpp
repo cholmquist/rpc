@@ -38,9 +38,9 @@ public:
         const std::string& address,
         const std::string& service_name ) :
         acceptor_ ( ios ) {
-        typename tcp::resolver resolver ( ios );
-        typename tcp::resolver::query query ( address, service_name );
-        typename tcp::endpoint endpoint = *resolver.resolve ( query );
+        tcp::resolver resolver ( ios );
+        tcp::resolver::query query ( address, service_name );
+        tcp::endpoint endpoint = *resolver.resolve ( query );
         acceptor_.open ( endpoint.protocol() );
         acceptor_.set_option ( tcp::acceptor::reuse_address ( true ) );
         acceptor_.bind ( endpoint );
@@ -53,7 +53,7 @@ public:
     }
 
 private:
-    typename tcp::acceptor acceptor_;
+    tcp::acceptor acceptor_;
 };
 
 class tcp_connector

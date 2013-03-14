@@ -12,7 +12,7 @@
 #endif
 
 #define BOOST_DATE_TIME_NO_LIB
-
+#define BOOST_ALL_NO_LIB
 
 #include <boost/rpc/service/async_stream_connection.hpp>
 #include <boost/rpc/service/async_tcp.hpp>
