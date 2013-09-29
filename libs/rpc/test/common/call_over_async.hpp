@@ -6,7 +6,7 @@
 #include <boost/smart_ptr/make_shared.hpp>
 #include <boost/thread/condition_variable.hpp>
 #include <boost/thread/mutex.hpp>
-#include <boost/thread/lock_guard.hpp>
+#include <boost/thread/locks.hpp>
 
 
 namespace boost{ namespace rpc{
